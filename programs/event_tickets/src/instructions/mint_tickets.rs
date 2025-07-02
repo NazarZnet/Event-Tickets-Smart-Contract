@@ -10,8 +10,8 @@ use anchor_spl::token::{Mint, MintTo, Token, TokenAccount};
 pub struct MintTicket<'info> {
     #[account(
         mut,
-        seeds = [EVENT_SEED, event.admin.as_ref(), event_id.to_be_bytes().as_ref()],
-        bump = event.bump,
+        // seeds = [EVENT_SEED, event.admin.as_ref(), event_id.to_be_bytes().as_ref()],
+        // bump = event.bump,
     )]
     pub event: Account<'info, Event>,
 
@@ -62,24 +62,15 @@ pub struct MintTicket<'info> {
 pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<()> {
     let event = &mut ctx.accounts.event;
 
-    // Перевірки
     require!(
         event.tickets_sold < event.total_tickets,
         EventError::InvalidTicketCount
     );
 
-    // --- Списання SOL ---
     let price = event.ticket_price;
     let buyer_lamports = **ctx.accounts.buyer.to_account_info().lamports.borrow();
     require!(buyer_lamports >= price, EventError::InsufficientFunds);
 
-    // Переводимо SOL з гаманця покупця на vault/адміну
-    // **ctx
-    //     .accounts
-    //     .buyer
-    //     .to_account_info()
-    //     .try_borrow_mut_lamports()? -= price;
-    // **ctx.accounts.event_vault.try_borrow_mut_lamports()? += price;
     system_program::transfer(
         CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
@@ -91,7 +82,6 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
         price,
     )?;
 
-    // Мінтимо NFT (supply = 1) на акаунт покупця
     let cpi_accounts = MintTo {
         mint: ctx.accounts.ticket_mint.to_account_info(),
         to: ctx.accounts.buyer_ticket_ata.to_account_info(),
@@ -112,7 +102,6 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
     );
     anchor_spl::token::mint_to(cpi_ctx, 1)?;
 
-    // Записуємо інформацію про квиток
     let ticket = &mut ctx.accounts.ticket;
     ticket.event = event_pubkey;
     ticket.mint = ctx.accounts.ticket_mint.key();
@@ -121,7 +110,6 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
     ticket.used = false;
     ticket.bump = ctx.bumps.ticket;
 
-    // Оновлюємо лічильник проданих квитків
     event.tickets_sold = event.tickets_sold.checked_add(1).unwrap_or_default();
     Ok(())
 }

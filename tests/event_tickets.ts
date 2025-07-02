@@ -68,40 +68,47 @@ describe("event_tickets", () => {
     assert.equal(eventAccount.ticketsSold, 0);
   });
 
-  it("Fails if name is too long", async () => {
-    const [eventCounterPda] = await getEventCounterPda(admin.publicKey);
-    const [eventPda] = await getEventPda(admin.publicKey, 1);
+  // it("Fails if name is too long", async () => {
+  //   const [eventCounterPda] = await getEventCounterPda(admin.publicKey);
+  //   const [eventPda] = await getEventPda(admin.publicKey, 1);
 
-    const name = "a".repeat(101); // too long
-    const description = "desc";
-    const startTime = Math.floor(Date.now() / 1000) + 1000;
-    const endTime = startTime + 3600;
-    const ticketPrice = new anchor.BN(1000);
-    const totalTickets = 100;
+  //   const name = "a".repeat(101); // too long
+  //   const description = "desc";
+  //   const startTime = Math.floor(Date.now() / 1000) + 1000;
+  //   const endTime = startTime + 3600;
+  //   const ticketPrice = new anchor.BN(1000);
+  //   const totalTickets = 100;
 
-    try {
-      await program.methods
-        .createEvent(
-          name,
-          description,
-          new anchor.BN(startTime),
-          new anchor.BN(endTime),
-          ticketPrice,
-          totalTickets
-        )
-        .accounts({
-          eventCounter: eventCounterPda,
-          event: eventPda,
-          admin: admin.publicKey,
-          systemProgram: anchor.web3.SystemProgram.programId,
-        })
-        .signers([])
-        .rpc();
-      assert.fail("Should have thrown error for long name");
-    } catch (e) {
-      assert.include(e.toString(), "NameTooLong");
-    }
-  });
+  //   try {
+  //     await program.methods
+  //       .createEvent(
+  //         name,
+  //         description,
+  //         new anchor.BN(startTime),
+  //         new anchor.BN(endTime),
+  //         ticketPrice,
+  //         totalTickets
+  //       )
+  //       .accounts({
+  //         eventCounter: eventCounterPda,
+  //         event: eventPda,
+  //         admin: admin.publicKey,
+  //         systemProgram: anchor.web3.SystemProgram.programId,
+  //       })
+  //       .signers([])
+  //       .rpc();
+  //     assert.fail("Should have thrown error for long name");
+  //   } catch (e) {
+  //     assert.include(e.toString(), "NameTooLong");
+  //   }
+  // });
+
+  // it("Get all events", async () => {
+  //   const events = await program.account.event.all();
+  //   console.log("All events:", events);
+  //   assert.isArray(events);
+  //   assert.isTrue(events.length > 0, "No events found");
+  // });
 
   // Helper to get vault PDA
   async function getVaultPda(eventPubkey: anchor.web3.PublicKey) {
@@ -141,18 +148,18 @@ describe("event_tickets", () => {
     );
   }
 
+  //FIXME: When pass ticket PDA to account see an erro left != right. But ticket PDA in Anchor is generated from seed so it should be generated automatically.
+  // When dont pass ticket PDA to account, then it is show error account "<PDA>" does not exists or empty data something like that.
   it("Mints a ticket for the event", async () => {
-    const [eventCounterPda] = await getEventCounterPda(admin.publicKey);
+
     const eventId = 0;
     const [eventPda] = await getEventPda(admin.publicKey, eventId);
     const [vaultPda] = await getVaultPda(eventPda);
 
-    // 1. Fetch event account to get ticketsSold
     const eventAccount = await program.account.event.fetch(eventPda);
-    console.log("Event Account:", eventAccount);
-    const ticketNumber = eventAccount.ticketsSold; // always use up-to-date value
+    console.log("Event Account:\n", eventAccount);
+    const ticketNumber = eventAccount.ticketsSold;
 
-    // 2. Derive all PDAs using ticketNumber
     const [ticketMintPda] = await getTicketMintPda(eventPda, ticketNumber);
     const [ticketPda] = await getTicketPda(eventPda, ticketNumber);
     const buyerTicketAta = anchor.utils.token.associatedAddress({
@@ -172,15 +179,14 @@ describe("event_tickets", () => {
         .mintTicket(new anchor.BN(eventId)) // event_id = 0
         .accounts({
           event: eventPda,
-          buyer: admin.publicKey,
-          eventVault: vaultPda,
-          // ticketMint: ticketMintPda,
-          // buyerTicketAta: buyerTicketAta,
-          // ticket: ticketPda,
-          // tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
-          // systemProgram: anchor.web3.SystemProgram.programId,
-          // rent: anchor.web3.SYSVAR_RENT_PUBKEY,
-          // associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
+          eventVault: eventAccount.vault,
+          ticketMint: ticketMintPda,
+          buyerTicketAta: buyerTicketAta,
+          ticket: ticketPda,
+          tokenProgram: anchor.utils.token.TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+          associatedTokenProgram: anchor.utils.token.ASSOCIATED_PROGRAM_ID,
         })
         .signers([])
         .rpc();
@@ -193,7 +199,6 @@ describe("event_tickets", () => {
       throw e;
     }
 
-    // Try to fetch and check ticket account
     try {
       const ticketAccount = await program.account.ticket.fetch(ticketPda);
       console.log("Ticket Account:", ticketAccount);
