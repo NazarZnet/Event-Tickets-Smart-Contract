@@ -57,6 +57,7 @@ pub struct CreateEvent<'info> {
 /// * `ctx` - The context containing all necessary accounts.
 /// * `name` - The name of the event.
 /// * `description` - A description of the event.
+/// * `metadata_uri` - A URI pointing to additional metadata about the event.
 /// * `start_time` - The Unix timestamp for when the event starts.
 /// * `end_time` - The Unix timestamp for when the event ends.
 /// * `ticket_price` - The price of one ticket in lamports.
@@ -69,14 +70,17 @@ pub fn create_event_handler(
     ctx: Context<CreateEvent>,
     name: String,
     description: String,
+    metadata_uri: String,
     start_time: i64,
     end_time: i64,
     ticket_price: u64,
     total_tickets: u64,
 ) -> Result<()> {
+    // Validation
     require!(name.len() >= 3, EventError::NameTooShort);
     require!(name.len() <= 100, EventError::NameTooLong);
     require!(description.len() <= 500, EventError::DescriptionTooLong);
+    require!(metadata_uri.len() <= 200, EventError::UriTooLong);
     require!(end_time > start_time, EventError::InvalidEventTime);
     require!(total_tickets > 0, EventError::InvalidTicketCount);
     require!(ticket_price > 0, EventError::InvalidTicketPrice);
@@ -93,6 +97,7 @@ pub fn create_event_handler(
     event.vault = ctx.accounts.vault.key();
     event.name = name;
     event.description = description;
+    event.metadata_uri = metadata_uri;
     event.start_time = start_time;
     event.end_time = end_time;
     event.ticket_price = ticket_price;

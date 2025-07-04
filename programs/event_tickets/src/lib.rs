@@ -23,6 +23,7 @@ pub mod event_tickets {
     /// * `ctx` - The context containing all necessary accounts.
     /// * `name` - The name of the event.
     /// * `description` - A description of the event.
+    /// * `metadata_uri` - A URI pointing to additional metadata about the event.
     /// * `start_time` - The Unix timestamp for when the event starts.
     /// * `end_time` - The Unix timestamp for when the event ends.
     /// * `ticket_price` - The price of one ticket in lamports.
@@ -31,6 +32,7 @@ pub mod event_tickets {
         ctx: Context<CreateEvent>,
         name: String,
         description: String,
+        metadata_uri: String,
         start_time: i64,
         end_time: i64,
         ticket_price: u64,
@@ -40,6 +42,7 @@ pub mod event_tickets {
             ctx,
             name,
             description,
+            metadata_uri,
             start_time,
             end_time,
             ticket_price,

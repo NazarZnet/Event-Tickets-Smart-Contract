@@ -17,6 +17,9 @@ pub struct Event {
     /// A detailed description of the event.
     #[max_len(500)]
     pub description: String,
+    /// The URI for the NFT metadata, pointing to a JSON file.
+    #[max_len(200)]
+    pub metadata_uri: String,
     /// The Unix timestamp when the event starts.
     pub start_time: i64,
     /// The Unix timestamp when the event ends.

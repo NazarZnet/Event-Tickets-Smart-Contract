@@ -10,6 +10,8 @@ pub enum EventError {
     NameTooLong,
     #[msg("Event description cannot exceed 500 characters.")]
     DescriptionTooLong,
+    #[msg("Metadata URI cannot exceed 200 characters.")]
+    UriTooLong,
     #[msg("The event's end time must be after its start time.")]
     InvalidEventTime,
     #[msg("The total number of tickets must be greater than zero.")]
