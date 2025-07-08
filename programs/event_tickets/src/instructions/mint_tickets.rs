@@ -203,6 +203,7 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
 
     // Initialize Ticket Account
     let ticket = &mut ctx.accounts.ticket;
+    ticket.id = event.tickets_sold;
     ticket.event = event_pubkey;
     ticket.mint = ctx.accounts.ticket_mint.key();
     ticket.owner = ctx.accounts.buyer.key();

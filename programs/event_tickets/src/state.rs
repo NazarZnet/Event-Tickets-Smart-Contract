@@ -7,6 +7,8 @@ use anchor_lang::prelude::*;
 #[account]
 #[derive(InitSpace)]
 pub struct Event {
+    /// The unique, sequential ID of the event, used as a seed.
+    pub id: u64,
     /// The public key of the administrator who created and manages the event.
     pub admin: Pubkey,
     /// The public key of the Program-Derived Address (PDA) that holds the funds from ticket sales.
@@ -53,6 +55,8 @@ pub struct EventCounter {
 #[account]
 #[derive(InitSpace)]
 pub struct Ticket {
+    /// The unique, sequential ID of the ticket within its event, used as a seed.
+    pub id: u64,
     /// The public key of the `Event` this ticket belongs to.
     pub event: Pubkey,
     /// The public key of the SPL token mint that represents this ticket as an NFT.

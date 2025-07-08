@@ -93,6 +93,7 @@ pub fn create_event_handler(
 
     // Initialize Event Account
     let event = &mut ctx.accounts.event;
+    event.id = event_counter.next_event_id;
     event.admin = ctx.accounts.admin.key();
     event.vault = ctx.accounts.vault.key();
     event.name = name;

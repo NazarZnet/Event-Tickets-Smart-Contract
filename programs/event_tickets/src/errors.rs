@@ -24,6 +24,12 @@ pub enum EventError {
     InsufficientFunds,
     #[msg("This event is sold out; no more tickets can be minted.")]
     EventSoldOut,
+    #[msg("This ticket has already been marked as used.")]
+    TicketAlreadyUsed,
+    #[msg("This ticket has expired and is no longer valid.")]
+    TicketExpired,
+    #[msg("The signer is not authorized to perform this action.")]
+    Unauthorized,
 
     // General Errors
     #[msg("A numeric operation resulted in an overflow.")]

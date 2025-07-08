@@ -62,4 +62,18 @@ pub mod event_tickets {
     pub fn mint_ticket(ctx: Context<MintTicket>, event_id: u64) -> Result<()> {
         mint_ticket_handler(ctx, event_id)
     }
+
+    /// Marks a ticket as used.
+    ///
+    /// This instruction can only be called by the event administrator.
+    /// It prevents a ticket from being used more than once.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context containing all necessary accounts.
+    /// * `event_id` - The unique ID of the event.
+    /// * `ticket_id` - The unique ID of the ticket to be used.
+    pub fn use_ticket(ctx: Context<UseTicket>, event_id: u64, ticket_id: u64) -> Result<()> {
+        use_ticket_handler(ctx, event_id, ticket_id)
+    }
 }
