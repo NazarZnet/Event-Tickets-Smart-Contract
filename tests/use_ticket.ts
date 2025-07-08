@@ -10,15 +10,14 @@ describe("Ticket Usage", () => {
   const provider = anchor.getProvider() as anchor.AnchorProvider;
   const admin = provider.wallet;
   const buyer = anchor.web3.Keypair.generate();
+  const unauthorizedUser = anchor.web3.Keypair.generate();
 
-  // State for a valid, non-expired ticket
   const eventId = new anchor.BN(2);
   let eventPda: anchor.web3.PublicKey;
-  let eventVaultPda: anchor.web3.PublicKey;
+  let eventVaultPda: anchor.web3.PublicKey; // Added for minting
   let ticketPda: anchor.web3.PublicKey;
-  const ticketId = new anchor.BN(0);
+  let ticketId: anchor.BN;
 
-  // --- Helper Functions ---
   const getEventPda = (adminPubkey: anchor.web3.PublicKey, eventId: anchor.BN) => {
     return anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("event"), adminPubkey.toBuffer(), eventId.toArrayLike(Buffer, "be", 8)],
@@ -35,39 +34,48 @@ describe("Ticket Usage", () => {
 
   before(async () => {
     await provider.connection.requestAirdrop(buyer.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL).then(sig => provider.connection.confirmTransaction(sig));
-    eventPda = getEventPda(admin.publicKey, eventId);
-    await program.methods
-      .createEvent(
-        "Community Meetup",
-        "A meetup for the community.",
-        "https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/nft.json",
-        new anchor.BN(Math.floor(Date.now() / 1000)), // Starts now
-        new anchor.BN(Math.floor(Date.now() / 1000) + 86400), // Ends in 24 hours
-        new anchor.BN(0.001 * anchor.web3.LAMPORTS_PER_SOL), // Price
-        new anchor.BN(10) // 10 tickets
-      )
-      .accounts({
-        event: eventPda,
-        admin: admin.publicKey
-      })
-      .rpc()
-      .catch(err => console.log("Failed to create new event. Error:", err));
+    await provider.connection.requestAirdrop(unauthorizedUser.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(sig => provider.connection.confirmTransaction(sig));
 
+    eventPda = getEventPda(admin.publicKey, eventId);
+
+    // Fetch or create the event
+    try {
+      const eventAccount = await program.account.event.fetch(eventPda);
+      eventVaultPda = eventAccount.vault;
+    } catch (error) {
+      await program.methods
+        .createEvent(
+          "Tech Conference 2025",
+          "A conference about future technology.",
+          "https://example.com/nft.json",
+          new anchor.BN(Math.floor(Date.now() / 1000)),
+          new anchor.BN(Math.floor(Date.now() / 1000) + 86400),
+          new anchor.BN(1 * anchor.web3.LAMPORTS_PER_SOL),
+          new anchor.BN(10)
+        )
+        .accounts({ event: eventPda, admin: admin.publicKey })
+        .rpc()
+        .catch(err => console.log("UseTicket: Failed to create event in before block:", err));
+      const eventAccount = await program.account.event.fetch(eventPda);
+      eventVaultPda = eventAccount.vault;
+    }
+
+    // Dynamically determine the ticket ID and mint
     const eventAccount = await program.account.event.fetch(eventPda);
-    eventVaultPda = eventAccount.vault;
+    ticketId = eventAccount.ticketsSold;
 
     await program.methods
       .mintTicket(eventId)
       .accounts({
         event: eventPda,
-        eventVault: eventVaultPda,
+        eventVault: eventVaultPda, // Pass the vault account
         buyer: buyer.publicKey
       })
       .signers([buyer])
-      .rpc().catch(err => console.log("Failed to mint ticket:", err));
+      .rpc()
+      .catch(err => console.log("UseTicket: Failed to mint ticket in before block:", err));
 
     ticketPda = getTicketPda(eventPda, ticketId);
-
   });
 
   it("Successfully marks a ticket as used", async () => {
@@ -82,7 +90,7 @@ describe("Ticket Usage", () => {
         admin: admin.publicKey
       })
       .rpc()
-      .catch(err => console.log("Failed to use ticket:", err));
+      .catch(err => console.log("UseTicket: Failed to use ticket:", err));
 
     console.log("\n--- Use Ticket Success ---");
     console.log("--------------------------");

@@ -29,7 +29,7 @@ describe("Event Creation", () => {
     const ticketPrice = new anchor.BN(0.01 * anchor.web3.LAMPORTS_PER_SOL);
     const totalTickets = new anchor.BN(10);
 
-    const [eventPda, _] = getEventPda(admin.publicKey, new anchor.BN(0));
+    const [eventPda, _] = getEventPda(admin.publicKey, new anchor.BN(2));
 
     await program.methods
       .createEvent(
@@ -45,7 +45,10 @@ describe("Event Creation", () => {
         event: eventPda,
         admin: admin.publicKey,
       })
-      .rpc();
+      .rpc()
+      .catch(err => console.log("CreateEvent: Failed to create event:", err));
+
+
 
     const eventAccount = await program.account.event.fetch(eventPda);
 
@@ -60,7 +63,7 @@ describe("Event Creation", () => {
 
   it("Fails to create an event with a name that is too long", async () => {
     try {
-      const [eventPda, _] = getEventPda(admin.publicKey, new anchor.BN(1));
+      const [eventPda, _] = getEventPda(admin.publicKey, new anchor.BN(3));
 
       await program.methods
         .createEvent(

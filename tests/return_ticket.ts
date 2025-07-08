@@ -11,12 +11,12 @@ describe("Ticket Returns", () => {
   const buyer = anchor.web3.Keypair.generate();
   const unauthorizedUser = anchor.web3.Keypair.generate(); // For failure test
 
-  const eventId = new anchor.BN(1);
+  const eventId = new anchor.BN(4);
   let eventPda: anchor.web3.PublicKey;
   let eventVaultPda: anchor.web3.PublicKey;
   let ticketPda: anchor.web3.PublicKey;
   let ticketMintPda: anchor.web3.PublicKey;
-  const ticketId = new anchor.BN(0);
+  let ticketId: anchor.BN;
 
   const getEventPda = (adminPubkey: anchor.web3.PublicKey, eventId: anchor.BN) => {
     return anchor.web3.PublicKey.findProgramAddressSync(
@@ -37,25 +37,35 @@ describe("Ticket Returns", () => {
     await provider.connection.requestAirdrop(unauthorizedUser.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(sig => provider.connection.confirmTransaction(sig));
 
     eventPda = getEventPda(admin.publicKey, eventId);
-    await program.methods
-      .createEvent(
-        "Refundable Concert",
-        "An event for which tickets can be returned.",
-        "https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/nft.json",
-        new anchor.BN(Math.floor(Date.now() / 1000)),
-        new anchor.BN(Math.floor(Date.now() / 1000) + 86400), // Ends in 24 hours
-        new anchor.BN(1 * anchor.web3.LAMPORTS_PER_SOL), // 1 SOL price
-        new anchor.BN(5)
-      )
-      .accounts({
-        event: eventPda,
-        admin: admin.publicKey
-      })
-      .rpc()
-      .catch(err => console.log("Failed to create new event. Error:", err));
 
+    // Fetch or create the event
+    try {
+      const eventAccount = await program.account.event.fetch(eventPda);
+      eventVaultPda = eventAccount.vault;
+    } catch (error) {
+      await program.methods
+        .createEvent(
+          "Refundable Concert",
+          "An event for which tickets can be returned.",
+          "https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/nft.json",
+          new anchor.BN(Math.floor(Date.now() / 1000)),
+          new anchor.BN(Math.floor(Date.now() / 1000) + 86400), // Ends in 24 hours
+          new anchor.BN(1 * anchor.web3.LAMPORTS_PER_SOL), // 1 SOL price
+          new anchor.BN(5)
+        )
+        .accounts({
+          event: eventPda,
+          admin: admin.publicKey
+        })
+        .rpc()
+        .catch(err => console.log("ReturnTicket: Failed to create event in before block:", err));
+      const eventAccount = await program.account.event.fetch(eventPda);
+      eventVaultPda = eventAccount.vault;
+    }
+
+    // Dynamically determine the ticket ID and mint
     const eventAccount = await program.account.event.fetch(eventPda);
-    eventVaultPda = eventAccount.vault;
+    ticketId = eventAccount.ticketsSold; // Use the current count as the new ID
 
     await program.methods
       .mintTicket(eventId)
@@ -66,7 +76,7 @@ describe("Ticket Returns", () => {
       })
       .signers([buyer])
       .rpc()
-      .catch(err => console.log("Failed to mint ticket:", err));
+      .catch(err => console.log("ReturnTicket: Failed to mint ticket in before block:", err));
 
     ticketPda = getTicketPda(eventPda, ticketId);
     const ticketAccount = await program.account.ticket.fetch(ticketPda);
@@ -89,7 +99,7 @@ describe("Ticket Returns", () => {
       })
       .signers([buyer])
       .rpc()
-      .catch(err => console.log("Failed to return ticket:", err));
+      .catch(err => console.log("ReturnTicket: Failed to return ticket:", err));
 
     console.log("\n--- Return Ticket Success ---");
     console.log("---------------------------");

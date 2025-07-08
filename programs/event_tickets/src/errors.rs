@@ -16,6 +16,10 @@ pub enum EventError {
     InvalidEventTime,
     #[msg("The total number of tickets must be greater than zero.")]
     InvalidTicketCount,
+    #[msg("This event has already ended.")]
+    EventEnded,
+    #[msg("This action can only be performed after the event has ended.")]
+    EventNotEnded,
 
     // Ticket minting errors
     #[msg("The ticket price must be greater than zero.")]
@@ -32,6 +36,8 @@ pub enum EventError {
     TicketHolderMismatch,
     #[msg("The signer is not authorized to perform this action.")]
     Unauthorized,
+    #[msg("The provided authority does not match the expected authority for this action.")]
+    AuthorityMismatch,
 
     // General Errors
     #[msg("A numeric operation resulted in an overflow.")]

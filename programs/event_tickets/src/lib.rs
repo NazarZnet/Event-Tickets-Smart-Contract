@@ -63,18 +63,18 @@ pub mod event_tickets {
         mint_ticket_handler(ctx, event_id)
     }
 
-    /// Marks a ticket as used.
-    ///
-    /// This instruction can only be called by the event administrator.
-    /// It prevents a ticket from being used more than once.
-    ///
-    /// # Arguments
-    ///
-    /// * `ctx` - The context containing all necessary accounts.
-    /// * `event_id` - The unique ID of the event.
-    /// * `ticket_id` - The unique ID of the ticket to be used.
+    /// Marks a ticket as used, for example, at the event entrance.
     pub fn use_ticket(ctx: Context<UseTicket>, event_id: u64, ticket_id: u64) -> Result<()> {
         use_ticket_handler(ctx, event_id, ticket_id)
+    }
+
+    /// Allows an admin to close an expired ticket account.
+    pub fn close_expired_ticket(
+        ctx: Context<CloseExpiredTicket>,
+        event_id: u64,
+        ticket_id: u64,
+    ) -> Result<()> {
+        close_expired_ticket_handler(ctx, event_id, ticket_id)
     }
 
     /// Allows a buyer to return an unused ticket for a full refund.
