@@ -28,6 +28,8 @@ pub enum EventError {
     TicketAlreadyUsed,
     #[msg("This ticket has expired and is no longer valid.")]
     TicketExpired,
+    #[msg("The signer is not the owner of this ticket.")]
+    TicketHolderMismatch,
     #[msg("The signer is not authorized to perform this action.")]
     Unauthorized,
 

@@ -3,22 +3,21 @@ import { Program } from "@coral-xyz/anchor";
 import { assert } from "chai";
 import { EventTickets } from "../target/types/event_tickets";
 
-
-describe("Ticket Usage", () => {
+describe("Ticket Returns", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const program = anchor.workspace.EventTickets as Program<EventTickets>;
   const provider = anchor.getProvider() as anchor.AnchorProvider;
   const admin = provider.wallet;
   const buyer = anchor.web3.Keypair.generate();
+  const unauthorizedUser = anchor.web3.Keypair.generate(); // For failure test
 
-  // State for a valid, non-expired ticket
-  const eventId = new anchor.BN(2);
+  const eventId = new anchor.BN(1);
   let eventPda: anchor.web3.PublicKey;
   let eventVaultPda: anchor.web3.PublicKey;
   let ticketPda: anchor.web3.PublicKey;
+  let ticketMintPda: anchor.web3.PublicKey;
   const ticketId = new anchor.BN(0);
 
-  // --- Helper Functions ---
   const getEventPda = (adminPubkey: anchor.web3.PublicKey, eventId: anchor.BN) => {
     return anchor.web3.PublicKey.findProgramAddressSync(
       [Buffer.from("event"), adminPubkey.toBuffer(), eventId.toArrayLike(Buffer, "be", 8)],
@@ -35,16 +34,18 @@ describe("Ticket Usage", () => {
 
   before(async () => {
     await provider.connection.requestAirdrop(buyer.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL).then(sig => provider.connection.confirmTransaction(sig));
+    await provider.connection.requestAirdrop(unauthorizedUser.publicKey, 1 * anchor.web3.LAMPORTS_PER_SOL).then(sig => provider.connection.confirmTransaction(sig));
+
     eventPda = getEventPda(admin.publicKey, eventId);
     await program.methods
       .createEvent(
-        "Community Meetup",
-        "A meetup for the community.",
+        "Refundable Concert",
+        "An event for which tickets can be returned.",
         "https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/nft.json",
-        new anchor.BN(Math.floor(Date.now() / 1000)), // Starts now
+        new anchor.BN(Math.floor(Date.now() / 1000)),
         new anchor.BN(Math.floor(Date.now() / 1000) + 86400), // Ends in 24 hours
-        new anchor.BN(0.001 * anchor.web3.LAMPORTS_PER_SOL), // Price
-        new anchor.BN(10) // 10 tickets
+        new anchor.BN(1 * anchor.web3.LAMPORTS_PER_SOL), // 1 SOL price
+        new anchor.BN(5)
       )
       .accounts({
         event: eventPda,
@@ -61,68 +62,53 @@ describe("Ticket Usage", () => {
       .accounts({
         event: eventPda,
         eventVault: eventVaultPda,
-        buyer: buyer.publicKey
+        buyer: buyer.publicKey,
       })
       .signers([buyer])
-      .rpc().catch(err => console.log("Failed to mint ticket:", err));
+      .rpc()
+      .catch(err => console.log("Failed to mint ticket:", err));
 
     ticketPda = getTicketPda(eventPda, ticketId);
-
+    const ticketAccount = await program.account.ticket.fetch(ticketPda);
+    ticketMintPda = ticketAccount.mint;
   });
 
-  it("Successfully marks a ticket as used", async () => {
-    const ticketBefore = await program.account.ticket.fetch(ticketPda);
-    assert.isFalse(ticketBefore.used, "Ticket should not be used yet");
+  it("Allows a buyer to return their ticket for a refund", async () => {
+    const buyerBalanceBefore = await provider.connection.getBalance(buyer.publicKey);
+    const eventAccountBefore = await program.account.event.fetch(eventPda);
+    const ticketsReturnedCount = eventAccountBefore.ticketsReturned;
 
     await program.methods
-      .useTicket(eventId, ticketId)
+      .returnTicket(eventId, ticketId)
       .accounts({
         event: eventPda,
+        eventVault: eventVaultPda,
         ticket: ticketPda,
-        admin: admin.publicKey
+        ticketMint: ticketMintPda,
+        buyer: buyer.publicKey,
       })
+      .signers([buyer])
       .rpc()
-      .catch(err => console.log("Failed to use ticket:", err));
+      .catch(err => console.log("Failed to return ticket:", err));
 
-    console.log("\n--- Use Ticket Success ---");
-    console.log("--------------------------");
+    console.log("\n--- Return Ticket Success ---");
+    console.log("---------------------------");
 
-    const ticketAfter = await program.account.ticket.fetch(ticketPda);
-    console.log('Ticket after use:', ticketAfter);
-    assert.isTrue(ticketAfter.used, "Ticket should be marked as used");
-  });
+    // Verify buyer's balance increased (roughly by ticket price, less fees)
+    const buyerBalanceAfter = await provider.connection.getBalance(buyer.publicKey);
+    console.log('Buyer balance before:', buyerBalanceBefore, 'after:', buyerBalanceAfter);
+    assert.isTrue(buyerBalanceAfter > buyerBalanceBefore, "Buyer balance should have increased after refund.");
 
-  it("Fails to use a ticket that is already used", async () => {
+    // Verify the ticket account was closed
     try {
-      await program.methods
-        .useTicket(eventId, ticketId)
-        .accounts({
-          event: eventPda,
-          ticket: ticketPda,
-          admin: admin.publicKey
-        })
-        .rpc();
-      assert.fail("Should have failed to use an already used ticket.");
+      await program.account.ticket.fetch(ticketPda);
+      assert.fail("Ticket account should have been closed.");
     } catch (err) {
-      assert.equal(err.error.errorCode.code, "TicketAlreadyUsed");
+      assert.include(err.message, "Account does not exist or has no data");
     }
-  });
 
-  it("Fails if a non-admin tries to use a ticket", async () => {
-    try {
-      await program.methods
-        .useTicket(eventId, ticketId)
-        .accounts({
-          event: eventPda,
-          ticket: ticketPda,
-          admin: buyer.publicKey, // Using buyer as the admin signer
-        })
-        .signers([buyer]) // Buyer signs instead of admin
-        .rpc();
-      assert.fail("Should have failed due to unauthorized signer.");
-    } catch (err) {
-      // The error comes from the address constraint on the admin account
-      assert.equal(err.error.errorCode.code, "ConstraintSeeds");
-    }
+    // Verify the event's tickets_returned count was incremented
+    const eventAccountAfter = await program.account.event.fetch(eventPda);
+    assert.isTrue(eventAccountAfter.ticketsReturned > ticketsReturnedCount, "Tickets sold should decrement");
   });
 });

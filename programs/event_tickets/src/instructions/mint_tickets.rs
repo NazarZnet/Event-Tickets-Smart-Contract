@@ -10,9 +10,9 @@ use anchor_spl::{
 use mpl_token_metadata::types::DataV2;
 
 use crate::{
-    constants::{DISCRIMINATOR_LENGHT, EVENT_SEED, TICKET_MINT_SEED, TICKET_SEED},
+    constants::{DISCRIMINATOR_LENGHT, EVENT_SEED, TICKET_MINT_SEED, TICKET_SEED, VAULT_SEED},
     errors::EventError,
-    state::{Event, Ticket},
+    state::{Event, EventVault, Ticket},
 };
 /// Contextual accounts required to mint a ticket NFT for an event.
 #[derive(Accounts)]
@@ -29,9 +29,12 @@ pub struct MintTicket<'info> {
 
     /// The event's vault account, where the ticket payment will be sent.
     /// The address is checked to ensure it matches the one stored in the event account.
-    #[account(mut, address = event.vault)]
-    /// CHECK: This is a PDA vault account. The address is verified against the event account.
-    pub event_vault: AccountInfo<'info>,
+    #[account(
+        mut,
+        seeds = [VAULT_SEED, event.key().as_ref()],
+        bump
+    )]
+    pub event_vault: Account<'info, EventVault>,
 
     /// The buyer of the ticket. Must be a signer.
     #[account(mut)]

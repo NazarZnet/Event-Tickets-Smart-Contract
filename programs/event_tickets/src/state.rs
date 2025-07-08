@@ -32,6 +32,8 @@ pub struct Event {
     pub total_tickets: u64,
     /// The number of tickets that have been sold so far.
     pub tickets_sold: u64,
+    /// The number of tickets that have been returned by buyers.
+    pub tickets_returned: u64,
     /// The bump seed for the event PDA.
     pub bump: u8,
 }
@@ -70,3 +72,7 @@ pub struct Ticket {
     /// The bump seed for the ticket PDA.
     pub bump: u8,
 }
+
+/// A PDA account that holds the funds for an event.
+#[account]
+pub struct EventVault {}

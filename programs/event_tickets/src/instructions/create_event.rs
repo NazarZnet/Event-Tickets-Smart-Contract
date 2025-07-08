@@ -1,7 +1,7 @@
 use crate::{
     constants::{DISCRIMINATOR_LENGHT, EVENT_COUNTER_SEED, EVENT_SEED, VAULT_SEED},
     errors::EventError,
-    state::{Event, EventCounter},
+    state::{Event, EventCounter, EventVault},
 };
 use anchor_lang::prelude::*;
 
@@ -39,8 +39,7 @@ pub struct CreateEvent<'info> {
         seeds = [VAULT_SEED, event.key().as_ref()],
         bump,
     )]
-    /// CHECK: This is a PDA vault account. No data is read from it, so no ownership check is required.
-    pub vault: AccountInfo<'info>,
+    pub vault: Account<'info, EventVault>,
 
     /// The administrator creating the event. Must be a signer.
     #[account(mut)]

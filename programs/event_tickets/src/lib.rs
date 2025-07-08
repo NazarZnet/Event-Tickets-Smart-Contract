@@ -76,4 +76,18 @@ pub mod event_tickets {
     pub fn use_ticket(ctx: Context<UseTicket>, event_id: u64, ticket_id: u64) -> Result<()> {
         use_ticket_handler(ctx, event_id, ticket_id)
     }
+
+    /// Allows a buyer to return an unused ticket for a full refund.
+    ///
+    /// This instruction validates the ticket, refunds the buyer, burns the NFT,
+    /// and closes the ticket account.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context containing all necessary accounts.
+    /// * `event_id` - The unique ID of the event.
+    /// * `ticket_id` - The unique ID of the ticket to be returned.
+    pub fn return_ticket(ctx: Context<ReturnTicket>, event_id: u64, ticket_id: u64) -> Result<()> {
+        return_ticket_handler(ctx, event_id, ticket_id)
+    }
 }
