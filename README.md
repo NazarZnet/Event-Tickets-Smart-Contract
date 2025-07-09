@@ -8,6 +8,11 @@ Each ticket is represented as a unique SPL Token (NFT), ensuring authenticity an
 
 - **Create Events**: An administrator can create new events with details like name, description, start/end times, ticket price, and total ticket supply.
 - **Mint NFT Tickets**: Users can purchase (mint) a ticket for an event. The cost is transferred to a secure vault, and a unique NFT representing the ticket is sent to the buyer's wallet.
+- **Return Tickets**: Buyers can return their ticket before the event starts to receive a full refund. The ticket NFT is burned in the process.
+- **Use Tickets**: An admin can mark a ticket as "used" at the time of the event, preventing it from being used multiple times.
+- **Post-Event Cleanup**: Admins can clean up on-chain data after an event has concluded.
+  - **Close Expired Tickets**: Admins can close the PDA accounts of expired tickets to reclaim rent.
+  - **Withdraw Funds**: Admins can withdraw all proceeds from the secure event vault and close the event and vault accounts.
 - **On-Chain Data**: All event and ticket data is stored in Program-Derived Accounts (PDAs) on the Solana blockchain, ensuring data integrity and availability.
 - **Secure Vaults**: Each event automatically gets its own PDA vault to hold the proceeds from ticket sales securely.
 
