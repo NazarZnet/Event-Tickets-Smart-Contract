@@ -63,18 +63,46 @@ pub mod event_tickets {
         mint_ticket_handler(ctx, event_id)
     }
 
-    /// Marks a ticket as used, for example, at the event entrance.
+    /// Marking a ticket as used.
+    ///
+    /// This instruction can only be called by the event administrator.
+    /// It prevents a ticket from being used more than once.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context containing all necessary accounts.
+    /// * `event_id` - The ID of the event, used for PDA validation.
+    /// * `ticket_id` - The ID of the ticket, used for PDA validation.
     pub fn use_ticket(ctx: Context<UseTicket>, event_id: u64, ticket_id: u64) -> Result<()> {
         use_ticket_handler(ctx, event_id, ticket_id)
     }
 
-    /// Allows an admin to close an expired ticket account.
+    /// Close an expired ticket account.
+    ///
+    /// This instruction allows the event admin to clean up by closing ticket PDA accounts
+    /// after an event has concluded, reclaiming the rent.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context containing all necessary accounts.
+    /// * `event_id` - The ID of the event, used for PDA validation.
+    /// * `ticket_id` - The ID of the ticket, used for PDA validation.
     pub fn close_expired_ticket(
         ctx: Context<CloseExpiredTicket>,
         event_id: u64,
         ticket_id: u64,
     ) -> Result<()> {
         close_expired_ticket_handler(ctx, event_id, ticket_id)
+    }
+
+    /// Withdrawing event proceeds and closing the event.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The context containing all necessary accounts.
+    /// * `event_id` - The ID of the event, used for PDA validation.
+    pub fn withdraw_funds(ctx: Context<WithdrawFunds>, event_id: u64) -> Result<()> {
+        withdraw_funds_handler(ctx, event_id)
     }
 
     /// Allows a buyer to return an unused ticket for a full refund.

@@ -34,12 +34,12 @@ pub enum EventError {
     TicketExpired,
     #[msg("The signer is not the owner of this ticket.")]
     TicketHolderMismatch,
-    #[msg("The signer is not authorized to perform this action.")]
-    Unauthorized,
-    #[msg("The provided authority does not match the expected authority for this action.")]
-    AuthorityMismatch,
 
     // General Errors
     #[msg("A numeric operation resulted in an overflow.")]
     NumericOverflow,
+    #[msg("The provided authority does not match the expected authority for this action.")]
+    AuthorityMismatch,
+    #[msg("The signer is not authorized to perform this action.")]
+    Unauthorized,
 }

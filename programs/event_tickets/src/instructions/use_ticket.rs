@@ -26,7 +26,7 @@ pub struct UseTicket<'info> {
     pub ticket: Account<'info, Ticket>,
 
     /// The administrator of the event. Their signature is required to authorize this action.
-    #[account(mut, address = event.admin)]
+    #[account(mut, address = event.admin @ EventError::AuthorityMismatch)]
     pub admin: Signer<'info>,
 }
 

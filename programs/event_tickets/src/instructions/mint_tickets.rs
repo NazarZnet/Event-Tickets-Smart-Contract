@@ -109,7 +109,12 @@ pub struct MintTicket<'info> {
 /// An empty `Result` indicating success or failure.
 pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<()> {
     let event = &mut ctx.accounts.event;
+    let clock = Clock::get()?;
 
+    require!(
+        event.end_time > clock.unix_timestamp,
+        EventError::EventEnded
+    );
     require!(
         event.tickets_sold < event.total_tickets,
         EventError::EventSoldOut

@@ -3,6 +3,9 @@ import { Program } from "@coral-xyz/anchor";
 import { assert } from "chai";
 import { EventTickets } from "../target/types/event_tickets";
 
+// Helper function to sleep for a given number of milliseconds
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 describe("Close Expired Ticket", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const program = anchor.workspace.EventTickets as Program<EventTickets>;
@@ -29,37 +32,38 @@ describe("Close Expired Ticket", () => {
     )[0];
   };
 
-  before(async () => {
+  it("Allows the admin to close an expired ticket account", async () => {
     await provider.connection.requestAirdrop(buyer.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL).then(sig => provider.connection.confirmTransaction(sig));
 
     eventPda = getEventPda(admin.publicKey, eventId);
     ticketPda = getTicketPda(eventPda, ticketId);
 
-    // Create an event that has already ended
+    const eventEndTime = Math.floor(Date.now() / 1000) + 3; // Event ends in 3 seconds
     await program.methods
       .createEvent(
-        "Past Event",
-        "An event that is already over.",
+        "Short-Lived Event",
+        "This event will end soon.",
         "https://example.com/nft.json",
-        new anchor.BN(Math.floor(Date.now() / 1000) - 2000), // Started in the past
-        new anchor.BN(Math.floor(Date.now() / 1000) - 1000), // Ended in the past
-        new anchor.BN(1 * anchor.web3.LAMPORTS_PER_SOL),
-        new anchor.BN(1)
+        new anchor.BN(Math.floor(Date.now() / 1000)),
+        new anchor.BN(eventEndTime),
+        new anchor.BN(0.01 * anchor.web3.LAMPORTS_PER_SOL),
+        new anchor.BN(10)
       )
       .accounts({ event: eventPda, admin: admin.publicKey })
       .rpc()
-      .catch(err => console.log("CloseExpiredTicket: Event creation failed in before block:", err));
+      .catch(err => console.log("CloseExpiredTicket: Failed to create event: ", err));
 
-    // Mint a ticket for the event
     await program.methods
       .mintTicket(eventId)
       .accounts({ event: eventPda, buyer: buyer.publicKey })
       .signers([buyer])
       .rpc()
-      .catch(err => console.log("CloseExpiredTicket: Minting ticket failed in before block:", err));
-  });
+      .catch(err => console.log("CloseExpiredTicket: Failed to mint ticket: ", err));
 
-  it("Allows the admin to close an expired ticket account", async () => {
+    // Wait for the event to end
+    console.log("\nWaiting for the event to end...");
+    await sleep(5000); // Wait 5 seconds
+
     const adminBalanceBefore = await provider.connection.getBalance(admin.publicKey);
 
     await program.methods
@@ -70,27 +74,20 @@ describe("Close Expired Ticket", () => {
         admin: admin.publicKey,
       })
       .rpc()
-      .catch(err => console.log("CloseExpiredTicket: Failed to close expired ticket:", err));
+      .catch(err => console.log("CloseExpiredTicket: Failed to close ticket", err));
 
     console.log("\n--- Close Expired Ticket Success ---");
     console.log("----------------------------------");
 
-    // Verify the ticket account was closed
-    try {
-      await program.account.ticket.fetch(ticketPda);
-      assert.fail("Ticket account should have been closed.");
-    } catch (err) {
-      assert.include(err.message, "Account does not exist or has no data");
-    }
+    const closedTicket = await provider.connection.getAccountInfo(ticketPda);
+    assert.isNull(closedTicket, "Ticket account should have been closed.");
 
-    // Verify the admin's balance increased due to rent refund
     const adminBalanceAfter = await provider.connection.getBalance(admin.publicKey);
     console.log('Admin balance before:', adminBalanceBefore, 'after:', adminBalanceAfter);
     assert.isTrue(adminBalanceAfter > adminBalanceBefore, "Admin balance should have increased.");
   });
 
   it("Fails if the event has not ended yet", async () => {
-    // Create a new event that is still ongoing
     const futureEventId = new anchor.BN(1);
     const futureEventPda = getEventPda(admin.publicKey, futureEventId);
     const futureTicketId = new anchor.BN(0);
@@ -101,23 +98,22 @@ describe("Close Expired Ticket", () => {
         "Future Event",
         "An event that is still running.",
         "https://example.com/nft2.json",
-        new anchor.BN(Math.floor(Date.now() / 1000) - 1000), // Started in the past
-        new anchor.BN(Math.floor(Date.now() / 1000) + 2000), // Ends in the future
+        new anchor.BN(Math.floor(Date.now() / 1000) - 1000),
+        new anchor.BN(Math.floor(Date.now() / 1000) + 5000), // Ends in 5 seconds
         new anchor.BN(0.01 * anchor.web3.LAMPORTS_PER_SOL),
-        new anchor.BN(20)
+        new anchor.BN(10)
       )
       .accounts({ event: futureEventPda, admin: admin.publicKey })
       .rpc()
-      .catch(err => console.log("CloseExpiredTicket: Failed to create event:", err));;
+      .catch(err => console.log("CloseExpiredTicket: Failed to create future event: ", err));
 
     await program.methods
       .mintTicket(futureEventId)
       .accounts({ event: futureEventPda, buyer: buyer.publicKey })
       .signers([buyer])
       .rpc()
-      .catch(err => console.log("CloseExpiredTicket: Failed to mint ticket:", err));
+      .catch(err => console.log("CloseExpiredTicket: Failed to mint future ticket: ", err));
 
-    // Attempt to close the ticket
     try {
       await program.methods
         .closeExpiredTicket(futureEventId, futureTicketId)
