@@ -46,6 +46,7 @@ describe("Ticket Returns", () => {
       await program.methods
         .createEvent(
           "Refundable Concert",
+          "RC",
           "An event for which tickets can be returned.",
           "https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/nft.json",
           new anchor.BN(Math.floor(Date.now() / 1000)),

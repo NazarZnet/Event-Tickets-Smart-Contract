@@ -16,6 +16,9 @@ pub struct Event {
     /// The name of the event.
     #[max_len(100)]
     pub name: String,
+    /// The symbol for the event, typically used in the NFT metadata.
+    #[max_len(10)]
+    pub symbol: String,
     /// A detailed description of the event.
     #[max_len(500)]
     pub description: String,

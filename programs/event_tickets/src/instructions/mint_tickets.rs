@@ -116,7 +116,7 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
         EventError::EventEnded
     );
     require!(
-        event.tickets_sold < event.total_tickets,
+        event.tickets_sold < event.total_tickets + event.tickets_returned,
         EventError::EventSoldOut
     );
     require!(
@@ -160,7 +160,7 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
     )?;
 
     let nft_name = format!("{} #{}", event.name, event.tickets_sold);
-    let nft_symbol = "TKT".to_string();
+    let nft_symbol = event.symbol.clone();
 
     create_metadata_accounts_v3(
         CpiContext::new_with_signer(

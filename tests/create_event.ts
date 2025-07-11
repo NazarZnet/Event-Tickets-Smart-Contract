@@ -22,6 +22,7 @@ describe("Event Creation", () => {
 
   it("Creates a new event successfully", async () => {
     const name = "Solana Summit 2025";
+    const symbol = "SS25";
     const description = "The biggest conference for Solana developers and enthusiasts.";
     const metadataUri = "https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/nft.json";
     const startTime = new anchor.BN(Math.floor(Date.now() / 1000) + 3600);
@@ -34,6 +35,7 @@ describe("Event Creation", () => {
     await program.methods
       .createEvent(
         name,
+        symbol,
         description,
         metadataUri,
         startTime,
@@ -68,6 +70,7 @@ describe("Event Creation", () => {
       await program.methods
         .createEvent(
           "a".repeat(101), // Too long
+          "LONG",
           "A valid description",
           "https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/nft.json",
           new anchor.BN(Math.floor(Date.now() / 1000) + 1000),

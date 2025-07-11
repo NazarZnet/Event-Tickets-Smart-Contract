@@ -46,6 +46,7 @@ describe("Ticket Usage", () => {
       await program.methods
         .createEvent(
           "Tech Conference 2025",
+          "TC25",
           "A conference about future technology.",
           "https://example.com/nft.json",
           new anchor.BN(Math.floor(Date.now() / 1000)),

@@ -55,6 +55,7 @@ pub struct CreateEvent<'info> {
 ///
 /// * `ctx` - The context containing all necessary accounts.
 /// * `name` - The name of the event.
+/// * `symbol` - The symbol for the event, typically used in the NFT metadata.
 /// * `description` - A description of the event.
 /// * `metadata_uri` - A URI pointing to additional metadata about the event.
 /// * `start_time` - The Unix timestamp for when the event starts.
@@ -68,6 +69,7 @@ pub struct CreateEvent<'info> {
 pub fn create_event_handler(
     ctx: Context<CreateEvent>,
     name: String,
+    symbol: String,
     description: String,
     metadata_uri: String,
     start_time: i64,
@@ -78,6 +80,7 @@ pub fn create_event_handler(
     // Validation
     require!(name.len() >= 3, EventError::NameTooShort);
     require!(name.len() <= 100, EventError::NameTooLong);
+    require!(symbol.len() <= 10, EventError::SymbolTooLong);
     require!(description.len() <= 500, EventError::DescriptionTooLong);
     require!(metadata_uri.len() <= 200, EventError::UriTooLong);
     require!(end_time > start_time, EventError::InvalidEventTime);
@@ -96,6 +99,7 @@ pub fn create_event_handler(
     event.admin = ctx.accounts.admin.key();
     event.vault = ctx.accounts.vault.key();
     event.name = name;
+    event.symbol = symbol;
     event.description = description;
     event.metadata_uri = metadata_uri;
     event.start_time = start_time;

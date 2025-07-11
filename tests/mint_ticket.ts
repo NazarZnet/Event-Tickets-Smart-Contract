@@ -42,6 +42,7 @@ describe("Ticket Minting", () => {
       await program.methods
         .createEvent(
           "Live Concert",
+          "LC",
           "A live concert featuring top artists.",
           "https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/nft.json",
           new anchor.BN(Math.floor(Date.now() / 1000)),

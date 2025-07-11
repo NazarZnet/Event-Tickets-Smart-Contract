@@ -36,6 +36,7 @@ describe("Withdraw Funds", () => {
       await program.methods
         .createEvent(
           "Finished Event",
+          "FE",
           "An event that is over, with funds in the vault.",
           "https://example.com/nft.json",
           new anchor.BN(Math.floor(Date.now() / 1000) - 2000),
@@ -100,6 +101,7 @@ describe("Withdraw Funds", () => {
     await program.methods
       .createEvent(
         "Ongoing Event",
+        "OE",
         "An event that is still running.",
         "https://example.com/nft2.json",
         new anchor.BN(Math.floor(Date.now() / 1000) - 1000),

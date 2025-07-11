@@ -22,6 +22,7 @@ pub mod event_tickets {
     ///
     /// * `ctx` - The context containing all necessary accounts.
     /// * `name` - The name of the event.
+    /// * `symbol` - The symbol for the event, typically used in the NFT metadata.
     /// * `description` - A description of the event.
     /// * `metadata_uri` - A URI pointing to additional metadata about the event.
     /// * `start_time` - The Unix timestamp for when the event starts.
@@ -31,6 +32,7 @@ pub mod event_tickets {
     pub fn create_event(
         ctx: Context<CreateEvent>,
         name: String,
+        symbol: String,
         description: String,
         metadata_uri: String,
         start_time: i64,
@@ -41,6 +43,7 @@ pub mod event_tickets {
         create_event_handler(
             ctx,
             name,
+            symbol,
             description,
             metadata_uri,
             start_time,

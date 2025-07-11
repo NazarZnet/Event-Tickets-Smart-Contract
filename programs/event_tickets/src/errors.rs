@@ -8,6 +8,8 @@ pub enum EventError {
     NameTooShort,
     #[msg("Event name cannot exceed 100 characters.")]
     NameTooLong,
+    #[msg("Event symbol cannot exceed 10 characters.")]
+    SymbolTooLong,
     #[msg("Event description cannot exceed 500 characters.")]
     DescriptionTooLong,
     #[msg("Metadata URI cannot exceed 200 characters.")]

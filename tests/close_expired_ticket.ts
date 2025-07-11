@@ -42,6 +42,7 @@ describe("Close Expired Ticket", () => {
     await program.methods
       .createEvent(
         "Short-Lived Event",
+        "SLE",
         "This event will end soon.",
         "https://example.com/nft.json",
         new anchor.BN(Math.floor(Date.now() / 1000)),
@@ -96,6 +97,7 @@ describe("Close Expired Ticket", () => {
     await program.methods
       .createEvent(
         "Future Event",
+        "FE",
         "An event that is still running.",
         "https://example.com/nft2.json",
         new anchor.BN(Math.floor(Date.now() / 1000) - 1000),
