@@ -214,7 +214,6 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
     ticket.id = event.tickets_sold;
     ticket.event = event_pubkey;
     ticket.mint = ctx.accounts.ticket_mint.key();
-    ticket.owner = ctx.accounts.buyer.key();
     ticket.valid_until = event.end_time;
     ticket.used = false;
     ticket.bump = ctx.bumps.ticket;

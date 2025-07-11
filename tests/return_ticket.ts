@@ -95,7 +95,7 @@ describe("Ticket Returns", () => {
         eventVault: eventVaultPda,
         ticket: ticketPda,
         ticketMint: ticketMintPda,
-        buyer: buyer.publicKey,
+        signer: buyer.publicKey,
       })
       .signers([buyer])
       .rpc()

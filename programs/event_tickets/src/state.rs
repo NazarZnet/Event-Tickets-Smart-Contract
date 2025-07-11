@@ -63,8 +63,6 @@ pub struct Ticket {
     pub event: Pubkey,
     /// The public key of the SPL token mint that represents this ticket as an NFT.
     pub mint: Pubkey,
-    /// The public key of the current owner of the ticket.
-    pub owner: Pubkey,
     /// A Unix timestamp indicating when the ticket is no longer valid (e.g., after the event ends).
     pub valid_until: i64,
     /// A flag to indicate whether the ticket has been used or redeemed.

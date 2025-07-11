@@ -82,7 +82,6 @@ describe("Ticket Minting", () => {
     console.log('Ticket:', ticketAccount);
     console.log("---------------------------");
 
-    assert.equal(ticketAccount.owner.toBase58(), buyer.publicKey.toBase58());
 
     const eventAccountAfter = await program.account.event.fetch(eventPda);
     assert.isTrue(eventAccountAfter.ticketsSold.eq(ticketNumber.add(new anchor.BN(1))));

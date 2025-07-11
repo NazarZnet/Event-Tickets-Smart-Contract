@@ -36,7 +36,7 @@ pub struct ReturnTicket<'info> {
         mut,
         seeds = [TICKET_SEED, event.key().as_ref(), ticket_id.to_be_bytes().as_ref()],
         bump = ticket.bump,
-        close=buyer,
+        close=signer,
     )]
     pub ticket: Account<'info, Ticket>,
 
@@ -49,15 +49,15 @@ pub struct ReturnTicket<'info> {
 
     /// The buyer who is returning the ticket. Must be the owner of the ticket.
     #[account(mut)]
-    pub buyer: Signer<'info>,
+    pub signer: Signer<'info>,
 
     /// The buyer's Associated Token Account holding the ticket NFT.
     #[account(
         mut,
         associated_token::mint = ticket.mint,
-        associated_token::authority = buyer,
+        associated_token::authority = signer,
     )]
-    pub buyer_ticket_ata: Account<'info, TokenAccount>,
+    pub signer_ticket_ata: Account<'info, TokenAccount>,
 
     pub token_program: Program<'info, Token>,
     pub system_program: Program<'info, System>,
@@ -66,7 +66,7 @@ pub struct ReturnTicket<'info> {
 
 /// Handles the logic for returning a ticket.
 ///
-/// This instruction validates the ticket, refunds the buyer, burns the NFT,
+/// This instruction validates the ticket, refunds the current holder, burns the NFT,
 /// and closes the ticket account.
 ///
 /// # Arguments
@@ -89,16 +89,12 @@ pub fn return_ticket_handler(
         EventError::TicketExpired
     );
     require!(!ctx.accounts.ticket.used, EventError::TicketAlreadyUsed);
-    require!(
-        ctx.accounts.ticket.owner == ctx.accounts.buyer.key(),
-        EventError::TicketHolderMismatch
-    );
 
     // Burn the NFT
     let cpi_accounts = Burn {
         mint: ctx.accounts.ticket_mint.to_account_info(),
-        from: ctx.accounts.buyer_ticket_ata.to_account_info(),
-        authority: ctx.accounts.buyer.to_account_info(),
+        from: ctx.accounts.signer_ticket_ata.to_account_info(),
+        authority: ctx.accounts.signer.to_account_info(),
     };
     burn(
         CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts),
@@ -107,9 +103,9 @@ pub fn return_ticket_handler(
 
     // Close the buyer's token account ---
     let cpi_accounts = CloseAccount {
-        account: ctx.accounts.buyer_ticket_ata.to_account_info(),
-        destination: ctx.accounts.buyer.to_account_info(),
-        authority: ctx.accounts.buyer.to_account_info(),
+        account: ctx.accounts.signer_ticket_ata.to_account_info(),
+        destination: ctx.accounts.signer.to_account_info(),
+        authority: ctx.accounts.signer.to_account_info(),
     };
     anchor_spl::token::close_account(CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
@@ -132,7 +128,7 @@ pub fn return_ticket_handler(
 
     **ctx
         .accounts
-        .buyer
+        .signer
         .to_account_info()
         .try_borrow_mut_lamports()? += ctx.accounts.event.ticket_price;
 
