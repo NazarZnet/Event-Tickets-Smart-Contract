@@ -62,8 +62,10 @@ describe("Withdraw Funds", () => {
     }
   });
 
-  it("Allows the admin to withdraw funds after the event has ended", async () => {
-    const adminBalanceBefore = await provider.connection.getBalance(admin.publicKey);
+  it("Allows the admin to withdraw funds after the event has ended to another account", async () => {
+    const destination = anchor.web3.Keypair.generate();
+    const destinationBalanceBefore = await provider.connection.getBalance(destination.publicKey);
+    console.log("Destination balance before withdrawal:", destinationBalanceBefore);
     const vaultBalance = await provider.connection.getBalance(eventVaultPda);
     console.log('Vault balance before withdrawal:', vaultBalance);
 
@@ -73,6 +75,7 @@ describe("Withdraw Funds", () => {
         event: eventPda,
         eventVault: eventVaultPda,
         admin: admin.publicKey,
+        destinationVault: destination.publicKey,
       })
       .rpc();
 
@@ -85,11 +88,11 @@ describe("Withdraw Funds", () => {
     const closedVault = await provider.connection.getAccountInfo(eventVaultPda);
     assert.isNull(closedVault, "Event vault account should have been closed.");
 
-    // Verify the admin's balance increased
-    const adminBalanceAfter = await provider.connection.getBalance(admin.publicKey);
-    console.log('Admin balance before:', adminBalanceBefore, 'after:', adminBalanceAfter);
-    assert.isTrue(adminBalanceAfter > adminBalanceBefore, "Admin balance should have increased.");
-    assert.isTrue(adminBalanceAfter >= adminBalanceBefore + vaultBalance, "Admin balance should have increased by at least the vault balance.");
+    // Verify the destination's balance increased
+    const destinationBalanceAfter = await provider.connection.getBalance(destination.publicKey);
+
+    assert.isTrue(destinationBalanceAfter > destinationBalanceBefore, "Destination balance should have increased.");
+    assert.isTrue(destinationBalanceAfter >= destinationBalanceBefore + vaultBalance, "Destination balance should have increased by at least the vault balance.");
   });
 
   it("Fails if the event has not ended yet", async () => {
@@ -122,6 +125,7 @@ describe("Withdraw Funds", () => {
           event: futureEventPda,
           eventVault: futureEventVaultPda,
           admin: admin.publicKey,
+          destinationVault: unauthorizedUser.publicKey, // Unauthorized user
         })
         .rpc();
       assert.fail("Should have failed because the event has not ended.");
