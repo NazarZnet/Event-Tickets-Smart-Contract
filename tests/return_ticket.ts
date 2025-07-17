@@ -1,5 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
+import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import { assert } from "chai";
 import { EventTickets } from "../target/types/event_tickets";
 
@@ -74,6 +75,7 @@ describe("Ticket Returns", () => {
         event: eventPda,
         eventVault: eventVaultPda,
         buyer: buyer.publicKey,
+        tokenProgram: TOKEN_2022_PROGRAM_ID
       })
       .signers([buyer])
       .rpc()
@@ -97,6 +99,7 @@ describe("Ticket Returns", () => {
         ticket: ticketPda,
         ticketMint: ticketMintPda,
         signer: buyer.publicKey,
+        tokenProgram: TOKEN_2022_PROGRAM_ID
       })
       .signers([buyer])
       .rpc()

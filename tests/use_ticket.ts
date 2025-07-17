@@ -1,8 +1,8 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
+import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import { assert } from "chai";
 import { EventTickets } from "../target/types/event_tickets";
-
 
 describe("Ticket Usage", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
@@ -70,7 +70,8 @@ describe("Ticket Usage", () => {
       .accounts({
         event: eventPda,
         eventVault: eventVaultPda, // Pass the vault account
-        buyer: buyer.publicKey
+        buyer: buyer.publicKey,
+        tokenProgram: TOKEN_2022_PROGRAM_ID
       })
       .signers([buyer])
       .rpc()

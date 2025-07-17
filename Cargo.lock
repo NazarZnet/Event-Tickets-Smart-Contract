@@ -638,6 +638,11 @@ dependencies = [
  "anchor-lang",
  "anchor-spl",
  "mpl-token-metadata",
+ "spl-discriminator",
+ "spl-tlv-account-resolution",
+ "spl-token-metadata-interface",
+ "spl-transfer-hook-interface",
+ "spl-type-length-value",
 ]
 
 [[package]]

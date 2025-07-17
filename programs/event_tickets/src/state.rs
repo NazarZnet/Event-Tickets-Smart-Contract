@@ -77,3 +77,14 @@ pub struct Ticket {
 /// A PDA account that holds the funds for an event.
 #[account]
 pub struct EventVault {}
+
+#[account]
+#[derive(InitSpace)]
+pub struct TicketOwnership {
+    /// The public key of the `Ticket` this ownership record refers to.
+    pub ticket: Pubkey,
+    /// The public key of the SPL token mint that represents this ticket.
+    pub mint: Pubkey,
+    /// The public key of the current owner of the ticket NFT.
+    pub owner: Pubkey,
+}

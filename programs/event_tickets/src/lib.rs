@@ -4,13 +4,16 @@ mod instructions;
 mod state;
 
 use anchor_lang::prelude::*;
-
 use instructions::*;
+
+use spl_discriminator::discriminator::SplDiscriminate;
+use spl_transfer_hook_interface::instruction::ExecuteInstruction;
 
 declare_id!("9iTfUKAVuJjV2Hb94LFjb1uHUcHYLvr2nXrZxiARwDdZ");
 
 #[program]
 pub mod event_tickets {
+
     use super::*;
 
     /// Creates a new event.
@@ -64,6 +67,15 @@ pub mod event_tickets {
     /// * `event_id` - The unique ID of the event for which to mint the ticket.
     pub fn mint_ticket(ctx: Context<MintTicket>, event_id: u64) -> Result<()> {
         mint_ticket_handler(ctx, event_id)
+    }
+
+    /// Ticket mint transfer hook handler
+    ///
+    /// Executes automatic actions when a ticket NFT is transferred
+    /// and update the ticket mint owner.
+    #[instruction(discriminator = ExecuteInstruction::SPL_DISCRIMINATOR_SLICE)]
+    pub fn transfer_hook(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
+        transfer_hook_handler(ctx, amount)
     }
 
     /// Marking a ticket as used.

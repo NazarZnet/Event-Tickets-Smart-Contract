@@ -1,7 +1,8 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{burn, Burn, CloseAccount, Mint, Token, TokenAccount},
+    token_2022::{burn, close_account, Burn, CloseAccount},
+    token_interface::{Mint, TokenAccount, TokenInterface},
 };
 
 use crate::{
@@ -45,7 +46,7 @@ pub struct ReturnTicket<'info> {
         mut,
         address=ticket.mint,
     )]
-    pub ticket_mint: Account<'info, Mint>,
+    pub ticket_mint: InterfaceAccount<'info, Mint>,
 
     /// The buyer who is returning the ticket. Must be the owner of the ticket.
     #[account(mut)]
@@ -56,10 +57,11 @@ pub struct ReturnTicket<'info> {
         mut,
         associated_token::mint = ticket.mint,
         associated_token::authority = signer,
+        associated_token::token_program=token_program
     )]
-    pub signer_ticket_ata: Account<'info, TokenAccount>,
+    pub signer_ticket_ata: InterfaceAccount<'info, TokenAccount>,
 
-    pub token_program: Program<'info, Token>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub system_program: Program<'info, System>,
     pub associated_token_program: Program<'info, AssociatedToken>,
 }
@@ -107,7 +109,7 @@ pub fn return_ticket_handler(
         destination: ctx.accounts.signer.to_account_info(),
         authority: ctx.accounts.signer.to_account_info(),
     };
-    anchor_spl::token::close_account(CpiContext::new(
+    close_account(CpiContext::new(
         ctx.accounts.token_program.to_account_info(),
         cpi_accounts,
     ))?;

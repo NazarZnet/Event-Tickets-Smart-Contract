@@ -15,7 +15,7 @@ pub struct WithdrawFunds<'info> {
         mut,
         seeds = [EVENT_SEED, admin.key().as_ref(), event_id.to_be_bytes().as_ref()],
         bump = event.bump,
-        close = admin, 
+        close = admin,
     )]
     pub event: Account<'info, Event>,
 
@@ -35,7 +35,7 @@ pub struct WithdrawFunds<'info> {
     /// CHECK: Optional destination account for the funds. If not provided, funds go to the admin.
     /// This account is not read or written to, only used as a transfer destination.
     #[account(mut)]
-    pub destination_vault:Option<AccountInfo<'info>>,
+    pub destination_vault: Option<AccountInfo<'info>>,
 
     pub system_program: Program<'info, System>,
 }
@@ -58,10 +58,14 @@ pub fn withdraw_funds_handler(ctx: Context<WithdrawFunds>, _event_id: u64) -> Re
     );
 
     if let Some(destination) = &ctx.accounts.destination_vault {
-       let vault_balance = ctx.accounts.event_vault.to_account_info().lamports();
+        let vault_balance = ctx.accounts.event_vault.to_account_info().lamports();
         if vault_balance > 0 {
-        **ctx.accounts.event_vault.to_account_info().try_borrow_mut_lamports()? -= vault_balance;
-        **destination.try_borrow_mut_lamports()? += vault_balance;
+            **ctx
+                .accounts
+                .event_vault
+                .to_account_info()
+                .try_borrow_mut_lamports()? -= vault_balance;
+            **destination.try_borrow_mut_lamports()? += vault_balance;
         }
     }
 

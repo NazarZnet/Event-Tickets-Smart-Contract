@@ -1,8 +1,8 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
+import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import { assert } from "chai";
 import { EventTickets } from "../target/types/event_tickets";
-
 describe("Withdraw Funds", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
   const program = anchor.workspace.EventTickets as Program<EventTickets>;
@@ -54,7 +54,7 @@ describe("Withdraw Funds", () => {
     try {
       await program.methods
         .mintTicket(eventId)
-        .accounts({ event: eventPda, eventVault: eventVaultPda, buyer: buyer.publicKey })
+        .accounts({ event: eventPda, eventVault: eventVaultPda, buyer: buyer.publicKey, tokenProgram: TOKEN_2022_PROGRAM_ID })
         .signers([buyer])
         .rpc();
     } catch (e) {

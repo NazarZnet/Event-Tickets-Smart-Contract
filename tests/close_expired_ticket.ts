@@ -1,7 +1,8 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
+import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { assert } from "chai";
-import { EventTickets } from "../target/types/event_tickets";
+import { EventTickets } from './../target/types/event_tickets';
 
 // Helper function to sleep for a given number of milliseconds
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -44,7 +45,7 @@ describe("Close Expired Ticket", () => {
         "Short-Lived Event",
         "SLE",
         "This event will end soon.",
-        "https://example.com/nft.json",
+        "https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/nft.json",
         new anchor.BN(Math.floor(Date.now() / 1000)),
         new anchor.BN(eventEndTime),
         new anchor.BN(0.01 * anchor.web3.LAMPORTS_PER_SOL),
@@ -56,7 +57,7 @@ describe("Close Expired Ticket", () => {
 
     await program.methods
       .mintTicket(eventId)
-      .accounts({ event: eventPda, buyer: buyer.publicKey })
+      .accounts({ event: eventPda, buyer: buyer.publicKey, tokenProgram: TOKEN_2022_PROGRAM_ID })
       .signers([buyer])
       .rpc()
       .catch(err => console.log("CloseExpiredTicket: Failed to mint ticket: ", err));
@@ -64,6 +65,11 @@ describe("Close Expired Ticket", () => {
     // Wait for the event to end
     console.log("\nWaiting for the event to end...");
     await sleep(5000); // Wait 5 seconds
+
+    const ticketAccount = await program.account.ticket.fetch(ticketPda);
+    console.log("Ticket Account:", ticketAccount);
+    console.log("----------------------------------");
+
 
     const adminBalanceBefore = await provider.connection.getBalance(admin.publicKey);
 
@@ -73,6 +79,7 @@ describe("Close Expired Ticket", () => {
         event: eventPda,
         ticket: ticketPda,
         admin: admin.publicKey,
+        tokenProgram: TOKEN_2022_PROGRAM_ID,
       })
       .rpc()
       .catch(err => console.log("CloseExpiredTicket: Failed to close ticket", err));
@@ -111,7 +118,7 @@ describe("Close Expired Ticket", () => {
 
     await program.methods
       .mintTicket(futureEventId)
-      .accounts({ event: futureEventPda, buyer: buyer.publicKey })
+      .accounts({ event: futureEventPda, buyer: buyer.publicKey, tokenProgram: TOKEN_2022_PROGRAM_ID })
       .signers([buyer])
       .rpc()
       .catch(err => console.log("CloseExpiredTicket: Failed to mint future ticket: ", err));
@@ -123,6 +130,7 @@ describe("Close Expired Ticket", () => {
           event: futureEventPda,
           ticket: futureTicketPda,
           admin: admin.publicKey,
+          tokenProgram: TOKEN_2022_PROGRAM_ID,
         })
         .rpc();
       assert.fail("Should have failed because the event has not ended.");
