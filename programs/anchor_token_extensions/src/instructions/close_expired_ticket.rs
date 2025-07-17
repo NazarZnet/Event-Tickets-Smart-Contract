@@ -6,9 +6,9 @@ use anchor_spl::{
 };
 
 use crate::{
-    constants::{EVENT_SEED, TICKET_MINT_SEED, TICKET_SEED},
+    constants::{EVENT_SEED, TICKET_MINT_SEED, TICKET_OWNERSHIP_SEED, TICKET_SEED},
     errors::EventError,
-    state::{Event, Ticket},
+    state::{Event, Ticket, TicketOwnership},
 };
 
 /// Contextual accounts required for an admin to close an expired ticket account.
@@ -40,20 +40,28 @@ pub struct CloseExpiredTicket<'info> {
         extensions::metadata_pointer::metadata_address = ticket_mint,
         extensions::permanent_delegate::delegate = admin,
         extensions::close_authority::authority = admin,
+        extensions::transfer_hook::authority= ticket,
+        extensions::transfer_hook::program_id = crate::ID,
         seeds = [TICKET_MINT_SEED, event.key().as_ref(), ticket_id.to_be_bytes().as_ref()],
         bump
     )]
     pub ticket_mint: InterfaceAccount<'info, Mint>,
 
+    #[account(
+        mut,
+        seeds = [TICKET_OWNERSHIP_SEED, ticket_mint.key().as_ref()],
+        bump,
+        close=admin
+    )]
+    pub ticket_ownership: Account<'info, TicketOwnership>,
+
     /// The token account (ATA) holding the ticket NFT.
     /// This account will be closed by the burn instruction.
-    /// The owner of this account can be anyone.
     #[account(
         mut,
         associated_token::token_program = token_program,
         associated_token::mint = ticket_mint,
-        associated_token::authority = admin, // The admin is the Permanent Delegate and can burn the NFT
-        //TODO: unknown authoritu. Can get it by trasfer hook or find better way to get it
+        associated_token::authority = ticket_ownership.owner,
     )]
     pub ticket_ata: InterfaceAccount<'info, TokenAccount>,
 
@@ -91,14 +99,12 @@ pub fn close_expired_ticket_handler(
     _event_id: u64,
     _ticket_id: u64,
 ) -> Result<()> {
-    // 1. Check if the event has actually ended
     let clock = Clock::get()?;
     require!(
         ctx.accounts.event.end_time < clock.unix_timestamp,
         EventError::EventNotEnded
     );
 
-    // 2. Burn the ticket NFT
     // The `admin` is the permanent_delegate for the mint and can burn the token
     // from any associated token account without needing the owner's signature.
     burn_checked(
@@ -110,11 +116,10 @@ pub fn close_expired_ticket_handler(
                 authority: ctx.accounts.admin.to_account_info(), // Authority is the Permanent Delegate
             },
         ),
-        1, // Burn the single NFT,
-        0, // No additional decimals for NFTs
+        1,
+        0,
     )?;
 
-    // 3. Close the Mint Account
     // Now that the token supply is 0, the `admin` (as the Close Authority) can
     // close the mint account and reclaim its rent lamports.
     close_account(CpiContext::new(
@@ -126,7 +131,6 @@ pub fn close_expired_ticket_handler(
         },
     ))?;
 
-    // 4. Close the Ticket PDA Account
     // The `ticket` PDA account is closed automatically by Anchor via the `close = admin`
     // constraint on the account struct. This happens after this handler function returns Ok.
 

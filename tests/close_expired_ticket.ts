@@ -45,7 +45,7 @@ describe("Close Expired Ticket", () => {
         "Short-Lived Event",
         "SLE",
         "This event will end soon.",
-        "https://example.com/nft.json",
+        "https://raw.githubusercontent.com/solana-developers/program-examples/new-examples/tokens/tokens/.assets/nft.json",
         new anchor.BN(Math.floor(Date.now() / 1000)),
         new anchor.BN(eventEndTime),
         new anchor.BN(0.01 * anchor.web3.LAMPORTS_PER_SOL),

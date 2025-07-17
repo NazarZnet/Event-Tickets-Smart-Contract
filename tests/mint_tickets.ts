@@ -20,7 +20,7 @@ describe("Ticket Minting and Transfer Hook", () => {
     const recipient = anchor.web3.Keypair.generate();
 
     // Use a unique event ID for this test run to avoid state conflicts
-    const eventId = new anchor.BN(0);
+    const eventId = new anchor.BN(1);
     let eventPda: anchor.web3.PublicKey;
     let eventVaultPda: anchor.web3.PublicKey;
     let ticketMintPda: anchor.web3.PublicKey;
@@ -117,6 +117,7 @@ describe("Ticket Minting and Transfer Hook", () => {
                 event: eventPda,
                 eventVault: eventVaultPda,
                 ticket: ticketPda,
+                ticketMint: ticketMintPda,
                 buyer: buyer.publicKey,
                 tokenProgram: TOKEN_2022_PROGRAM_ID,
             })
