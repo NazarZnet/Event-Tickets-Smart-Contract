@@ -72,6 +72,7 @@ pub struct Ticket {
     pub used: bool,
     /// The bump seed for the ticket PDA.
     pub bump: u8,
+    pub owner: Pubkey,
 }
 
 /// A PDA account that holds the funds for an event.

@@ -2,14 +2,14 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
 import { assert } from "chai";
-import { AnchorTokenExtensions } from './../target/types/anchor_token_extensions';
+import { EventTickets } from './../target/types/event_tickets';
 
 // Helper function to sleep for a given number of milliseconds
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 describe("Close Expired Ticket", () => {
   anchor.setProvider(anchor.AnchorProvider.env());
-  const program = anchor.workspace.AnchorTokenExtensions as Program<AnchorTokenExtensions>;
+  const program = anchor.workspace.EventTickets as Program<EventTickets>;
   const provider = anchor.getProvider() as anchor.AnchorProvider;
   const admin = provider.wallet;
   const buyer = anchor.web3.Keypair.generate();

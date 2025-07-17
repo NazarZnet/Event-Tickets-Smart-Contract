@@ -6,7 +6,7 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-anchor_token_extensions = "Ag5Hff5sbVGThib6MbqgC8HDBAvuJBGYpsnA7F9du2Wa"
+event_tickets = "9iTfUKAVuJjV2Hb94LFjb1uHUcHYLvr2nXrZxiARwDdZ"
 
 [registry]
 url = "https://api.apr.dev"
