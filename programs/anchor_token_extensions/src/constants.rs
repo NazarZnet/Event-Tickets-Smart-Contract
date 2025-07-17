@@ -22,3 +22,6 @@ pub const TICKET_SEED: &[u8] = b"ticket";
 /// Seed for the ticket mint PDA.
 #[constant]
 pub const TICKET_MINT_SEED: &[u8] = b"ticket_mint";
+
+#[constant]
+pub const TICKET_OWNERSHIP_SEED: &[u8] = b"ticket_ownership";
