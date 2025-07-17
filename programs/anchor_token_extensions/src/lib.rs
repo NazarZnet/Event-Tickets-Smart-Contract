@@ -8,6 +8,7 @@ use instructions::*;
 
 use spl_discriminator::discriminator::SplDiscriminate;
 use spl_transfer_hook_interface::instruction::ExecuteInstruction;
+
 declare_id!("Ag5Hff5sbVGThib6MbqgC8HDBAvuJBGYpsnA7F9du2Wa");
 
 #[program]
@@ -67,13 +68,6 @@ pub mod event_tickets {
     pub fn mint_ticket(ctx: Context<MintTicket>, event_id: u64) -> Result<()> {
         mint_ticket_handler(ctx, event_id)
     }
-
-    // #[interface(spl_transfer_hook_interface::initialize_extra_account_meta_list)]
-    // pub fn initialize_extra_account_meta_list(
-    //     ctx: Context<InitializeExtraAccountMetaList>,
-    // ) -> Result<()> {
-    //     initialize_extra_account_meta_list_handler(ctx)
-    // }
 
     #[instruction(discriminator = ExecuteInstruction::SPL_DISCRIMINATOR_SLICE)]
     pub fn transfer_hook(ctx: Context<TransferHook>, amount: u64) -> Result<()> {

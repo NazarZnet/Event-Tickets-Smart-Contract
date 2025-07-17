@@ -30,6 +30,8 @@ use spl_tlv_account_resolution::{
 };
 use spl_transfer_hook_interface::instruction::ExecuteInstruction;
 
+use crate::constants::TICKET_OWNERSHIP_SEED;
+use crate::state::TicketOwnership;
 use crate::{
     constants::{DISCRIMINATOR_LENGHT, EVENT_SEED, TICKET_MINT_SEED, TICKET_SEED, VAULT_SEED},
     errors::EventError,
@@ -78,6 +80,7 @@ pub struct MintTicket<'info> {
         mint::decimals = 0,
         mint::authority = ticket,  // The ticket PDA is the mint authority
         mint::freeze_authority = ticket, // and the freeze authority
+        mint::token_program = token_program,
         extensions::metadata_pointer::authority = ticket,
         extensions::metadata_pointer::metadata_address = ticket_mint,
         extensions::permanent_delegate::delegate = event.admin,
@@ -101,8 +104,14 @@ pub struct MintTicket<'info> {
     )]
     pub extra_account_meta_list: AccountInfo<'info>,
 
-    #[account(init_if_needed, seeds = [b"counter"], bump, payer = buyer, space = 16)]
-    pub counter_account: Account<'info, CounterAccount>,
+    #[account(
+        init,
+        payer = buyer,
+        space = DISCRIMINATOR_LENGHT + TicketOwnership::INIT_SPACE,
+        seeds = [TICKET_OWNERSHIP_SEED, ticket_mint.key().as_ref()],
+        bump
+    )]
+    pub ticket_ownership: Account<'info, TicketOwnership>,
 
     /// The buyer's Associated Token Account (ATA) to receive the ticket NFT.
     /// It will be created if it does not exist.
@@ -252,6 +261,12 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
     ticket.used = false;
     ticket.bump = ctx.bumps.ticket;
 
+    // Initialize Ticket Ownership Account
+    let ownership = &mut ctx.accounts.ticket_ownership;
+    ownership.owner = ctx.accounts.buyer.key();
+    ownership.ticket = ticket.key();
+    ownership.mint = ctx.accounts.ticket_mint.key();
+
     // Update Event State
     event.tickets_sold = event
         .tickets_sold
@@ -263,14 +278,6 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
     Ok(())
 }
 
-#[error_code]
-pub enum TransferError {
-    #[msg("The amount is too big")]
-    AmountTooBig,
-    #[msg("The token is not currently transferring")]
-    IsNotCurrentlyTransferring,
-}
-
 pub fn transfer_hook_handler(ctx: Context<TransferHook>, _amount: u64) -> Result<()> {
     // Fail this instruction if it is not called from within a transfer hook
     let source_account = &ctx.accounts.source_token;
@@ -279,15 +286,12 @@ pub fn transfer_hook_handler(ctx: Context<TransferHook>, _amount: u64) -> Result
     check_token_account_is_transferring(&source_account.to_account_info().try_borrow_data()?)?;
     check_token_account_is_transferring(&destination_account.to_account_info().try_borrow_data()?)?;
 
-    // Increment the transfer count safely
-    let count = ctx
-        .accounts
-        .counter_account
-        .counter
-        .checked_add(1)
-        .ok_or(TransferError::AmountTooBig)?;
+    ctx.accounts.ticket_ownership.owner = ctx.accounts.destination_token.owner;
 
-    msg!("This token has been transferred {} times", count);
+    msg!(
+        "Ticket owner updated to: {}",
+        ctx.accounts.ticket_ownership.owner
+    );
 
     Ok(())
 }
@@ -308,19 +312,18 @@ fn check_token_account_is_transferring(account_data: &[u8]) -> Result<()> {
 impl<'info> MintTicket<'info> {
     pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
         Ok(vec![ExtraAccountMeta::new_with_seeds(
-            &[Seed::Literal {
-                bytes: b"counter".to_vec(),
-            }],
+            &[
+                Seed::Literal {
+                    bytes: TICKET_OWNERSHIP_SEED.to_vec(),
+                },
+                Seed::AccountKey { index: 1 }, // 1 because in TransferHook source_token has index 0, mint has index 1
+            ],
             false, // is_signer
             true,  // is_writable
         )?])
     }
 }
 
-// Order of accounts matters for this struct.
-// The first 4 accounts are the accounts required for token transfer (source, mint, destination, owner)
-// Remaining accounts are the extra accounts required from the ExtraAccountMetaList account
-// These accounts are provided via CPI to this program from the token2022 program
 #[derive(Accounts)]
 pub struct TransferHook<'info> {
     #[account(token::mint = mint, token::authority = owner, token::token_program=TOKEN_2022_PROGRAM_ID)]
@@ -341,11 +344,10 @@ pub struct TransferHook<'info> {
     #[account(seeds = [b"extra-account-metas", mint.key().as_ref()], bump)]
     pub extra_account_meta_list: UncheckedAccount<'info>,
 
-    #[account(mut, seeds = [b"counter"], bump)]
-    pub counter_account: Account<'info, CounterAccount>,
-}
-
-#[account]
-pub struct CounterAccount {
-    counter: u64,
+    #[account(
+        mut,
+        seeds = [TICKET_OWNERSHIP_SEED, mint.key().as_ref()],
+        bump
+    )]
+    pub ticket_ownership: Account<'info, TicketOwnership>,
 }

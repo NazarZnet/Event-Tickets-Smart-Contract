@@ -1,27 +1,31 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { EventTickets } from './../target/types/event_tickets';
-
 import {
-    ASSOCIATED_TOKEN_PROGRAM_ID,
+    createAssociatedTokenAccountInstruction,
     createTransferCheckedWithTransferHookInstruction,
-    getAssociatedTokenAddressSync,
+    getAssociatedTokenAddress,
     TOKEN_2022_PROGRAM_ID
 } from "@solana/spl-token";
 import { assert } from "chai";
-
+import { EventTickets } from "../target/types/event_tickets";
 
 describe("Ticket Minting and Transfer Hook", () => {
     anchor.setProvider(anchor.AnchorProvider.env());
     const program = anchor.workspace.EventTickets as Program<EventTickets>;
     const provider = anchor.getProvider() as anchor.AnchorProvider;
     const admin = provider.wallet;
-    const buyer = anchor.web3.Keypair.generate();
 
+    // Use dedicated keypairs for the test to ensure isolation
+    const buyer = anchor.web3.Keypair.generate();
+    const recipient = anchor.web3.Keypair.generate();
+
+    // Use a unique event ID for this test run to avoid state conflicts
+    const eventId = new anchor.BN(0);
     let eventPda: anchor.web3.PublicKey;
     let eventVaultPda: anchor.web3.PublicKey;
-    const eventId = new anchor.BN(0);
+    let ticketMintPda: anchor.web3.PublicKey;
 
+    // Helper functions to derive PDAs, consistent with your program's logic
     const getEventPda = (adminPubkey: anchor.web3.PublicKey, eventId: anchor.BN) => {
         return anchor.web3.PublicKey.findProgramAddressSync(
             [Buffer.from("event"), adminPubkey.toBuffer(), eventId.toArrayLike(Buffer, "be", 8)],
@@ -42,6 +46,7 @@ describe("Ticket Minting and Transfer Hook", () => {
             program.programId
         )[0];
     };
+
     const getExtraAccountMetaListPda = (mint: anchor.web3.PublicKey) => {
         return anchor.web3.PublicKey.findProgramAddressSync(
             [Buffer.from("extra-account-metas"), mint.toBuffer()],
@@ -49,10 +54,27 @@ describe("Ticket Minting and Transfer Hook", () => {
         )[0];
     };
 
-    before(async () => {
-        const signature = await provider.connection.requestAirdrop(buyer.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL);
-        await provider.connection.confirmTransaction(signature, "confirmed");
+    const getTiketOwnershipPda = (mintPda: anchor.web3.PublicKey) => {
+        return anchor.web3.PublicKey.findProgramAddressSync(
+            [Buffer.from("ticket_ownership"), mintPda.toBuffer()],
+            program.programId
+        )[0];
+    };
 
+    before(async () => {
+        // Fund the buyer and recipient accounts
+        await Promise.all([
+            provider.connection.confirmTransaction(
+                await provider.connection.requestAirdrop(buyer.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL),
+                "confirmed"
+            ),
+            provider.connection.confirmTransaction(
+                await provider.connection.requestAirdrop(recipient.publicKey, 2 * anchor.web3.LAMPORTS_PER_SOL),
+                "confirmed"
+            ),
+        ]);
+
+        // Create a new event for this test run
         eventPda = getEventPda(admin.publicKey, eventId);
         try {
             const eventAccount = await program.account.event.fetch(eventPda);
@@ -78,67 +100,16 @@ describe("Ticket Minting and Transfer Hook", () => {
             const eventAccount = await program.account.event.fetch(eventPda);
             eventVaultPda = eventAccount.vault;
         }
+
     });
 
-    // it("Mints a ticket NFT successfully", async () => {
-    //     const eventAccountBefore = await program.account.event.fetch(eventPda);
-    //     const ticketNumber = eventAccountBefore.ticketsSold;
-
-
-    //     console.log("Event pda:", eventPda.toBase58());
-    //     console.log("Event vault pda:", eventVaultPda.toBase58());
-    //     console.log("Buyer:", buyer.publicKey.toBase58());
-
-    //     console.log("Ticket number:", ticketNumber.toNumber());
-    //     console.log("Event account before:", eventAccountBefore);
-    //     console.log("---------------------------");
-
-    //     const ticketPda = getTicketPda(eventPda, ticketNumber);
-    //     // const ticketMintPda = getTicketMintPda(eventPda, ticketNumber);
-    //     // const extraAccountMetaListPda = getExtraAccountMetaListPda(ticketMintPda);
-
-
-    //     await program.methods
-    //         .mintTicket(eventId)
-    //         .accounts({
-    //             event: eventPda,
-    //             eventVault: eventVaultPda,
-    //             ticket: ticketPda,
-
-    //             buyer: buyer.publicKey,
-    //             tokenProgram: TOKEN_2022_PROGRAM_ID,
-    //         })
-    //         .signers([buyer])
-    //         .rpc()
-    //         .catch(err => console.log("MintTicket: Failed to mint ticket:", err));
-
-    //     // const ticketPda = getTicketPda(eventPda, ticketNumber);
-    //     const ticketAccount = await program.account.ticket.fetch(ticketPda);
-
-    //     console.log("\n--- Mint Ticket Success ---");
-    //     console.log('Ticket:', ticketAccount);
-    //     console.log("---------------------------");
-    // });
-
-    it("Executes transfer hook on token transfer", async () => {
-        // --- 1. Setup: Mint a new ticket with the hook enabled ---
-        // This assumes your `mint_ticket` is now correctly initializing the hook.
+    it("Mints a ticket, initializes the hook, and executes it on transfer", async () => {
         const eventAccountBefore = await program.account.event.fetch(eventPda);
         const ticketNumber = eventAccountBefore.ticketsSold;
 
-        console.log("Transfered ticket number:", ticketNumber.toNumber());
-        console.log("Event account before:", eventAccountBefore);
-        console.log("---------------------------");
-
         const ticketPda = getTicketPda(eventPda, ticketNumber);
-        const ticketMintPda = getTicketMintPda(eventPda, ticketNumber);
-        console.log("Ticket PDA:", ticketPda.toBase58());
-        console.log("Ticket Mint PDA:", ticketMintPda.toBase58());
+        ticketMintPda = getTicketMintPda(eventPda, ticketNumber);
 
-        const counterPda = anchor.web3.PublicKey.findProgramAddressSync(
-            [Buffer.from("counter")],
-            program.programId
-        )[0];
 
         await program.methods
             .mintTicket(eventId)
@@ -146,11 +117,6 @@ describe("Ticket Minting and Transfer Hook", () => {
                 event: eventPda,
                 eventVault: eventVaultPda,
                 ticket: ticketPda,
-                ticketMint: ticketMintPda,
-                counterAccount: counterPda,
-
-
-
                 buyer: buyer.publicKey,
                 tokenProgram: TOKEN_2022_PROGRAM_ID,
             })
@@ -159,59 +125,72 @@ describe("Ticket Minting and Transfer Hook", () => {
             .catch(err => console.log("MintTicket: Failed to mint ticket:", err));
 
         const ticketAccount = await program.account.ticket.fetch(ticketPda);
-        console.log("Ticket account after minting:", ticketAccount);
-        const mintAdress = ticketAccount.mint;
+        console.log(`Ticket:`, ticketAccount);
+        console.log("Ticket minted successfully. Mint PDA:", ticketMintPda.toBase58());
 
+        const ticketOwnershipPda = getTiketOwnershipPda(ticketMintPda);
+        const ticketOwnershipAccount = await program.account.ticketOwnership.fetch(ticketOwnershipPda);
+        console.log("Current ticket owner:", ticketOwnershipAccount.owner.toBase58());
 
-        // --- 2. Create a recipient and their token account ---
-        const recipient = anchor.web3.Keypair.generate();
-        await provider.connection.confirmTransaction(await provider.connection.requestAirdrop(recipient.publicKey, anchor.web3.LAMPORTS_PER_SOL));
-        const recipientAta = getAssociatedTokenAddressSync(
-            mintAdress, recipient.publicKey, false, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
+        const buyerAta = await getAssociatedTokenAddress(ticketMintPda, buyer.publicKey, false, TOKEN_2022_PROGRAM_ID);
+        const recipientAta = await getAssociatedTokenAddress(ticketMintPda, recipient.publicKey, false, TOKEN_2022_PROGRAM_ID);
+
+        // Create the recipient's associated token account
+        const createRecipientAtaTx = new anchor.web3.Transaction().add(
+            createAssociatedTokenAccountInstruction(
+                provider.wallet.publicKey, // Payer
+                recipientAta,
+                recipient.publicKey,
+                ticketMintPda,
+                TOKEN_2022_PROGRAM_ID
+            )
         );
+        await provider.sendAndConfirm(createRecipientAtaTx, [], { skipPreflight: true }).catch(err => console.log("MintTicket: Failed to create recipient ATA:", err));
+        console.log("Recipient ATA created:", recipientAta.toBase58());
 
-        // --- 3. Construct the hooked transfer instruction ---
-        const buyerAta = getAssociatedTokenAddressSync(
-            mintAdress, buyer.publicKey, false, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
-        );
-
-        console.log("Try transfer first");
+        console.log("Executing first transfer...");
         const transferInstruction = await createTransferCheckedWithTransferHookInstruction(
             provider.connection,
-            buyerAta,           // Source token account
-            mintAdress,      // Mint account
-            recipientAta,       // Destination token account
-            buyer.publicKey,    // Owner of source account
-            BigInt(1),                  // Amount
-            0,                  // Decimals
+            buyerAta,
+            ticketMintPda,
+            recipientAta,
+            buyer.publicKey,
+            BigInt(1),
+            0,
             [],
             "confirmed",
             TOKEN_2022_PROGRAM_ID
         );
 
         const transaction = new anchor.web3.Transaction().add(transferInstruction);
-        const txSig = await anchor.web3.sendAndConfirmTransaction(provider.connection, transaction, [buyer], { skipPreflight: true }).catch(err => console.log("MintTicket: Failed to transfer ticket:", err));
-        console.log("Ticket mint transfered sucessfully!");
+        await provider.sendAndConfirm(transaction, [buyer], { skipPreflight: true, }).catch(err => console.log("MintTicket: Failed to execute first transfer:", err));
+        console.log("First transfer successful!");
 
-        // --- 4. Verify the hook was executed ---
-        const counterAccount = await program.account.counterAccount.fetch(counterPda);
-        console.log(`Counter after first transfer: ${counterAccount.counter.toNumber()}`);
-        assert.equal(counterAccount.counter.toNumber(), 1, "Counter should be 1 after one transfer");
 
-        // --- 5. Transfer it back and check again ---
-        console.log("Try transfer back");
+        const ticketOwnershipAccount2 = await program.account.ticketOwnership.fetch(ticketOwnershipPda);
+        console.log("Ticket owner after first transfer:", ticketOwnershipAccount2.owner.toBase58());
+        assert.notEqual(ticketOwnershipAccount2.owner.toBase58(), ticketOwnershipAccount.owner.toBase58(), "Ticket owner should change after first transfer");
+
+        console.log("Executing second transfer (transfer back)...");
         const transferBackInstruction = await createTransferCheckedWithTransferHookInstruction(
-            provider.connection, recipientAta, mintAdress,
-            buyerAta, recipient.publicKey, BigInt(1), 0, [],
+            provider.connection,
+            recipientAta,
+            ticketMintPda,
+            buyerAta,
+            recipient.publicKey,
+            BigInt(1),
+            0,
+            [],
             "confirmed",
             TOKEN_2022_PROGRAM_ID
         );
         const tx2 = new anchor.web3.Transaction().add(transferBackInstruction);
-        const txSig2 = await anchor.web3.sendAndConfirmTransaction(provider.connection, tx2, [recipient], { skipPreflight: true });
-        console.log("Ticket mint transfered back sucessfully!");
+        await provider.sendAndConfirm(tx2, [recipient], { skipPreflight: true }).catch(err => console.log("MintTicket: Failed to execute second transfer:", err));
+        console.log("Second transfer successful!");
 
-        const counterAccountAfter = await program.account.counterAccount.fetch(counterPda);
-        console.log(`Counter after second transfer: ${counterAccountAfter.counter.toNumber()}`);
-        assert.equal(counterAccountAfter.counter.toNumber(), 2, "Counter should be 2 after second transfer");
+        const ticketOwnershipAccount3 = await program.account.ticketOwnership.fetch(ticketOwnershipPda);
+        console.log("Ticket owner after second transfer:", ticketOwnershipAccount3.owner.toBase58());
+        assert.equal(ticketOwnershipAccount3.owner.toBase58(), ticketOwnershipAccount.owner.toBase58(), "Ticket owner should be the original buyer after second transfer");
+
     });
 });
