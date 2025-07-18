@@ -7,6 +7,8 @@ use anchor_lang::prelude::*;
 #[account]
 #[derive(InitSpace)]
 pub struct Event {
+    /// The unique, sequential ID of the event, used as a seed.
+    pub id: u64,
     /// The public key of the administrator who created and manages the event.
     pub admin: Pubkey,
     /// The public key of the Program-Derived Address (PDA) that holds the funds from ticket sales.
@@ -14,6 +16,9 @@ pub struct Event {
     /// The name of the event.
     #[max_len(100)]
     pub name: String,
+    /// The symbol for the event, typically used in the NFT metadata.
+    #[max_len(10)]
+    pub symbol: String,
     /// A detailed description of the event.
     #[max_len(500)]
     pub description: String,
@@ -30,6 +35,8 @@ pub struct Event {
     pub total_tickets: u64,
     /// The number of tickets that have been sold so far.
     pub tickets_sold: u64,
+    /// The number of tickets that have been returned by buyers.
+    pub tickets_returned: u64,
     /// The bump seed for the event PDA.
     pub bump: u8,
 }
@@ -53,16 +60,31 @@ pub struct EventCounter {
 #[account]
 #[derive(InitSpace)]
 pub struct Ticket {
+    /// The unique, sequential ID of the ticket within its event, used as a seed.
+    pub id: u64,
     /// The public key of the `Event` this ticket belongs to.
     pub event: Pubkey,
     /// The public key of the SPL token mint that represents this ticket as an NFT.
     pub mint: Pubkey,
-    /// The public key of the current owner of the ticket.
-    pub owner: Pubkey,
     /// A Unix timestamp indicating when the ticket is no longer valid (e.g., after the event ends).
     pub valid_until: i64,
     /// A flag to indicate whether the ticket has been used or redeemed.
     pub used: bool,
     /// The bump seed for the ticket PDA.
     pub bump: u8,
+}
+
+/// A PDA account that holds the funds for an event.
+#[account]
+pub struct EventVault {}
+
+#[account]
+#[derive(InitSpace)]
+pub struct TicketOwnership {
+    /// The public key of the `Ticket` this ownership record refers to.
+    pub ticket: Pubkey,
+    /// The public key of the SPL token mint that represents this ticket.
+    pub mint: Pubkey,
+    /// The public key of the current owner of the ticket NFT.
+    pub owner: Pubkey,
 }

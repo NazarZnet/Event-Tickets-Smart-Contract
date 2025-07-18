@@ -21,6 +21,13 @@ anchor-debug = []
 
 
 [dependencies]
-anchor-lang = { version = "0.31.1", features = ["init-if-needed"] }
-anchor-spl = { version = "0.31.1", features = ["metadata"] }
-mpl-token-metadata = "5.0.1"
+anchor-lang = { version = "0.31.1", features = [
+    "init-if-needed",
+    "interface-instructions",
+] }
+anchor-spl = "0.31.1"
+spl-token-metadata-interface = "0.7.0"
+spl-type-length-value = "0.8.0"
+spl-transfer-hook-interface = "0.10.0"
+spl-tlv-account-resolution = "0.10.0"
+spl-discriminator = "0.4.1"

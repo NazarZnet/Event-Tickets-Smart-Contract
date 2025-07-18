@@ -1,18 +1,29 @@
-use anchor_lang::{prelude::*, system_program};
+use anchor_lang::prelude::*;
+use anchor_lang::solana_program::rent::{
+    DEFAULT_EXEMPTION_THRESHOLD, DEFAULT_LAMPORTS_PER_BYTE_YEAR,
+};
+use anchor_lang::system_program::{transfer, Transfer};
+use anchor_spl::token_2022::{mint_to, MintTo};
 use anchor_spl::{
     associated_token::AssociatedToken,
-    metadata::{
-        create_master_edition_v3, create_metadata_accounts_v3, CreateMasterEditionV3,
-        CreateMetadataAccountsV3, Metadata,
+    token_interface::{
+        token_metadata_initialize, Mint, TokenAccount, TokenInterface, TokenMetadataInitialize,
     },
-    token::{mint_to, Mint, MintTo, Token, TokenAccount},
 };
-use mpl_token_metadata::types::DataV2;
+use spl_tlv_account_resolution::{
+    account::ExtraAccountMeta, seeds::Seed, state::ExtraAccountMetaList,
+};
+use spl_token_metadata_interface::state::TokenMetadata;
+use spl_transfer_hook_interface::instruction::ExecuteInstruction;
+use spl_type_length_value::variable_len_pack::VariableLenPack;
 
 use crate::{
-    constants::{DISCRIMINATOR_LENGHT, EVENT_SEED, TICKET_MINT_SEED, TICKET_SEED},
+    constants::{
+        DISCRIMINATOR_LENGHT, EVENT_SEED, EXTRA_ACCOUNTS_METAS_SEED, TICKET_MINT_SEED,
+        TICKET_OWNERSHIP_SEED, TICKET_SEED, VAULT_SEED,
+    },
     errors::EventError,
-    state::{Event, Ticket},
+    state::{Event, EventVault, Ticket, TicketOwnership},
 };
 /// Contextual accounts required to mint a ticket NFT for an event.
 #[derive(Accounts)]
@@ -29,9 +40,12 @@ pub struct MintTicket<'info> {
 
     /// The event's vault account, where the ticket payment will be sent.
     /// The address is checked to ensure it matches the one stored in the event account.
-    #[account(mut, address = event.vault)]
-    /// CHECK: This is a PDA vault account. The address is verified against the event account.
-    pub event_vault: AccountInfo<'info>,
+    #[account(
+        mut,
+        seeds = [VAULT_SEED, event.key().as_ref()],
+        bump
+    )]
+    pub event_vault: Account<'info, EventVault>,
 
     /// The buyer of the ticket. Must be a signer.
     #[account(mut)]
@@ -49,49 +63,58 @@ pub struct MintTicket<'info> {
 
     /// The SPL token mint for the ticket NFT. Each ticket has a unique mint.    
     #[account(
-        init,
+        init_if_needed,
         payer = buyer,
         mint::decimals = 0,
-        mint::authority = ticket,  // The ticket PDA is the mint authority
-        mint::freeze_authority = ticket, // and the freeze authority
+        mint::authority = ticket,
+        mint::freeze_authority = ticket,
+        mint::token_program = token_program,
+        extensions::metadata_pointer::authority = ticket,
+        extensions::metadata_pointer::metadata_address = ticket_mint,
+        extensions::permanent_delegate::delegate = event.admin,
+        extensions::close_authority::authority = event.admin,
+        extensions::transfer_hook::authority= ticket,
+        extensions::transfer_hook::program_id = crate::ID,
         seeds = [TICKET_MINT_SEED, event.key().as_ref(), event.tickets_sold.to_be_bytes().as_ref()],
         bump
     )]
-    pub ticket_mint: Account<'info, Mint>,
+    pub ticket_mint: InterfaceAccount<'info, Mint>,
+
+    /// CHECK: ExtraAccountMetaList Account, must use these seeds
+    #[account(
+        init_if_needed,
+        seeds = [EXTRA_ACCOUNTS_METAS_SEED, ticket_mint.key().as_ref()],
+        bump,
+        space = ExtraAccountMetaList::size_of(
+            MintTicket::extra_account_metas()?.len()
+        )?,
+        payer = buyer
+    )]
+    pub extra_account_meta_list: AccountInfo<'info>,
+
+    /// Additional account for transfer hook to get the mint owner
+    #[account(
+        init,
+        payer = buyer,
+        space = DISCRIMINATOR_LENGHT + TicketOwnership::INIT_SPACE,
+        seeds = [TICKET_OWNERSHIP_SEED, ticket_mint.key().as_ref()],
+        bump
+    )]
+    pub ticket_ownership: Account<'info, TicketOwnership>,
 
     /// The buyer's Associated Token Account (ATA) to receive the ticket NFT.
     /// It will be created if it does not exist.
     #[account(
         init_if_needed,
         payer = buyer,
+        associated_token::token_program = token_program,
         associated_token::mint = ticket_mint,
         associated_token::authority = buyer,
     )]
-    pub buyer_ticket_ata: Account<'info, TokenAccount>,
-
-    /// CHECK: Metaplex Metadata account
-    #[account(
-        mut,
-        seeds = [b"metadata", token_metadata_program.key().as_ref(), ticket_mint.key().as_ref()],
-        bump,
-        seeds::program = token_metadata_program.key(),
-    )]
-    pub metadata_account: UncheckedAccount<'info>,
-
-    /// CHECK: Metaplex Master Edition account
-    #[account(
-        mut,
-        seeds = [b"metadata", token_metadata_program.key().as_ref(), ticket_mint.key().as_ref(), b"edition"],
-        bump,
-        seeds::program = token_metadata_program.key(),
-    )]
-    pub master_edition_account: UncheckedAccount<'info>,
-
-    pub token_program: Program<'info, Token>,
-    pub token_metadata_program: Program<'info, Metadata>,
+    pub buyer_ticket_ata: InterfaceAccount<'info, TokenAccount>,
+    pub token_program: Interface<'info, TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
 }
 
 /// Handles the logic for minting a new ticket NFT.
@@ -106,9 +129,14 @@ pub struct MintTicket<'info> {
 /// An empty `Result` indicating success or failure.
 pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<()> {
     let event = &mut ctx.accounts.event;
+    let clock = Clock::get()?;
 
     require!(
-        event.tickets_sold < event.total_tickets,
+        event.end_time > clock.unix_timestamp,
+        EventError::EventEnded
+    );
+    require!(
+        event.tickets_sold < event.total_tickets + event.tickets_returned,
         EventError::EventSoldOut
     );
     require!(
@@ -117,10 +145,10 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
     );
 
     // Payment Transfer
-    system_program::transfer(
+    transfer(
         CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
-            system_program::Transfer {
+            Transfer {
                 from: ctx.accounts.buyer.to_account_info(),
                 to: ctx.accounts.event_vault.to_account_info(),
             },
@@ -128,7 +156,17 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
         event.ticket_price,
     )?;
 
-    // NFT Minting
+    let extra_account_metas = MintTicket::extra_account_metas()?;
+
+    // initialize ExtraAccountMetaList account with extra accounts
+    ExtraAccountMetaList::init::<ExecuteInstruction>(
+        &mut ctx.accounts.extra_account_meta_list.try_borrow_mut_data()?,
+        &extra_account_metas,
+    )?;
+
+    // Initialize Ticket Mint Metadata
+    let nft_name = format!("{} #{}", event.name, event.tickets_sold);
+
     let event_pubkey = event.key();
     let ticket_signer_seeds = &[
         TICKET_SEED,
@@ -137,6 +175,46 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
         &[ctx.bumps.ticket],
     ];
     let signer = &[&ticket_signer_seeds[..]];
+
+    let token_metadata = TokenMetadata {
+        name: nft_name.clone(),
+        symbol: event.symbol.clone(),
+        uri: event.metadata_uri.clone(),
+        ..Default::default()
+    };
+    let data_len = 4 + token_metadata.get_packed_len()?;
+    let lamports =
+        data_len as u64 * DEFAULT_LAMPORTS_PER_BYTE_YEAR * DEFAULT_EXEMPTION_THRESHOLD as u64;
+
+    transfer(
+        CpiContext::new(
+            ctx.accounts.system_program.to_account_info(),
+            Transfer {
+                from: ctx.accounts.buyer.to_account_info(),
+                to: ctx.accounts.ticket_mint.to_account_info(),
+            },
+        ),
+        lamports,
+    )?;
+
+    token_metadata_initialize(
+        CpiContext::new_with_signer(
+            ctx.accounts.token_program.to_account_info(),
+            TokenMetadataInitialize {
+                program_id: ctx.accounts.token_program.to_account_info(),
+                mint: ctx.accounts.ticket_mint.to_account_info(),
+                metadata: ctx.accounts.ticket_mint.to_account_info(),
+                mint_authority: ctx.accounts.ticket.to_account_info(),
+                update_authority: ctx.accounts.ticket.to_account_info(),
+            },
+            signer,
+        ),
+        nft_name,
+        event.symbol.clone(),
+        event.metadata_uri.clone(),
+    )?;
+
+    // NFT Minting
 
     mint_to(
         CpiContext::new_with_signer(
@@ -151,64 +229,20 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
         1,
     )?;
 
-    let nft_name = format!("{} #{}", event.name, event.tickets_sold);
-    let nft_symbol = "TKT".to_string();
-
-    create_metadata_accounts_v3(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_metadata_program.to_account_info(),
-            CreateMetadataAccountsV3 {
-                metadata: ctx.accounts.metadata_account.to_account_info(),
-                mint: ctx.accounts.ticket_mint.to_account_info(),
-                mint_authority: ctx.accounts.ticket.to_account_info(),
-                update_authority: ctx.accounts.ticket.to_account_info(),
-                payer: ctx.accounts.buyer.to_account_info(),
-                system_program: ctx.accounts.system_program.to_account_info(),
-                rent: ctx.accounts.rent.to_account_info(),
-            },
-            signer,
-        ),
-        DataV2 {
-            name: nft_name,
-            symbol: nft_symbol,
-            uri: event.metadata_uri.clone(),
-            seller_fee_basis_points: 0,
-            creators: None,
-            collection: None,
-            uses: None,
-        },
-        false, // Is mutable
-        true,  // Update authority is signer
-        None,  // Collection details
-    )?;
-
-    create_master_edition_v3(
-        CpiContext::new_with_signer(
-            ctx.accounts.token_metadata_program.to_account_info(),
-            CreateMasterEditionV3 {
-                edition: ctx.accounts.master_edition_account.to_account_info(),
-                mint: ctx.accounts.ticket_mint.to_account_info(),
-                update_authority: ctx.accounts.ticket.to_account_info(),
-                mint_authority: ctx.accounts.ticket.to_account_info(),
-                payer: ctx.accounts.buyer.to_account_info(),
-                metadata: ctx.accounts.metadata_account.to_account_info(),
-                token_program: ctx.accounts.token_program.to_account_info(),
-                system_program: ctx.accounts.system_program.to_account_info(),
-                rent: ctx.accounts.rent.to_account_info(),
-            },
-            signer,
-        ),
-        Some(0), // Max supply
-    )?;
-
     // Initialize Ticket Account
     let ticket = &mut ctx.accounts.ticket;
+    ticket.id = event.tickets_sold;
     ticket.event = event_pubkey;
     ticket.mint = ctx.accounts.ticket_mint.key();
-    ticket.owner = ctx.accounts.buyer.key();
     ticket.valid_until = event.end_time;
     ticket.used = false;
     ticket.bump = ctx.bumps.ticket;
+
+    // Initialize Ticket Ownership Account
+    let ownership = &mut ctx.accounts.ticket_ownership;
+    ownership.owner = ctx.accounts.buyer.key();
+    ownership.ticket = ticket.key();
+    ownership.mint = ctx.accounts.ticket_mint.key();
 
     // Update Event State
     event.tickets_sold = event
@@ -216,5 +250,23 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
         .checked_add(1)
         .ok_or(EventError::NumericOverflow)?;
 
+    msg!("Ticket minted successfully: {}", ticket.id);
+
     Ok(())
+}
+
+// Define extra account metas to store on extra_account_meta_list account
+impl<'info> MintTicket<'info> {
+    pub fn extra_account_metas() -> Result<Vec<ExtraAccountMeta>> {
+        Ok(vec![ExtraAccountMeta::new_with_seeds(
+            &[
+                Seed::Literal {
+                    bytes: TICKET_OWNERSHIP_SEED.to_vec(),
+                },
+                Seed::AccountKey { index: 1 }, // 1 because in TransferHook source_token has index 0, mint has index 1
+            ],
+            false, // is_signer
+            true,  // is_writable
+        )?])
+    }
 }

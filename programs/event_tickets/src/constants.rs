@@ -22,3 +22,11 @@ pub const TICKET_SEED: &[u8] = b"ticket";
 /// Seed for the ticket mint PDA.
 #[constant]
 pub const TICKET_MINT_SEED: &[u8] = b"ticket_mint";
+
+/// Seed for the ticket ownership PDA.
+#[constant]
+pub const TICKET_OWNERSHIP_SEED: &[u8] = b"ticket_ownership";
+
+/// Seed for the extra accounts metas PDA.
+#[constant]
+pub const EXTRA_ACCOUNTS_METAS_SEED: &[u8] = b"extra-account-metas";
