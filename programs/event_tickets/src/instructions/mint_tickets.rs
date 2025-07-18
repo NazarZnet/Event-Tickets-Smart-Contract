@@ -2,31 +2,28 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::rent::{
     DEFAULT_EXEMPTION_THRESHOLD, DEFAULT_LAMPORTS_PER_BYTE_YEAR,
 };
-use anchor_lang::system_program;
 use anchor_lang::system_program::{transfer, Transfer};
-
 use anchor_spl::token_2022::{mint_to, MintTo};
-use anchor_spl::token_interface::{token_metadata_initialize, TokenMetadataInitialize};
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_interface::{Mint, TokenAccount, TokenInterface},
+    token_interface::{
+        token_metadata_initialize, Mint, TokenAccount, TokenInterface, TokenMetadataInitialize,
+    },
 };
-
-use spl_token_metadata_interface::state::TokenMetadata;
-
-use spl_type_length_value::variable_len_pack::VariableLenPack;
-
 use spl_tlv_account_resolution::{
     account::ExtraAccountMeta, seeds::Seed, state::ExtraAccountMetaList,
 };
+use spl_token_metadata_interface::state::TokenMetadata;
 use spl_transfer_hook_interface::instruction::ExecuteInstruction;
+use spl_type_length_value::variable_len_pack::VariableLenPack;
 
-use crate::constants::{EXTRA_ACCOUNTS_METAS_SEED, TICKET_OWNERSHIP_SEED};
-use crate::state::TicketOwnership;
 use crate::{
-    constants::{DISCRIMINATOR_LENGHT, EVENT_SEED, TICKET_MINT_SEED, TICKET_SEED, VAULT_SEED},
+    constants::{
+        DISCRIMINATOR_LENGHT, EVENT_SEED, EXTRA_ACCOUNTS_METAS_SEED, TICKET_MINT_SEED,
+        TICKET_OWNERSHIP_SEED, TICKET_SEED, VAULT_SEED,
+    },
     errors::EventError,
-    state::{Event, EventVault, Ticket},
+    state::{Event, EventVault, Ticket, TicketOwnership},
 };
 /// Contextual accounts required to mint a ticket NFT for an event.
 #[derive(Accounts)]
@@ -69,8 +66,8 @@ pub struct MintTicket<'info> {
         init_if_needed,
         payer = buyer,
         mint::decimals = 0,
-        mint::authority = ticket,  // The ticket PDA is the mint authority
-        mint::freeze_authority = ticket, // and the freeze authority
+        mint::authority = ticket,
+        mint::freeze_authority = ticket,
         mint::token_program = token_program,
         extensions::metadata_pointer::authority = ticket,
         extensions::metadata_pointer::metadata_address = ticket_mint,
@@ -95,6 +92,7 @@ pub struct MintTicket<'info> {
     )]
     pub extra_account_meta_list: AccountInfo<'info>,
 
+    /// Additional account for transfer hook to get the mint owner
     #[account(
         init,
         payer = buyer,
@@ -147,10 +145,10 @@ pub fn mint_ticket_handler(ctx: Context<MintTicket>, _event_id: u64) -> Result<(
     );
 
     // Payment Transfer
-    system_program::transfer(
+    transfer(
         CpiContext::new(
             ctx.accounts.system_program.to_account_info(),
-            system_program::Transfer {
+            Transfer {
                 from: ctx.accounts.buyer.to_account_info(),
                 to: ctx.accounts.event_vault.to_account_info(),
             },

@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_2022::{burn, close_account, Burn, CloseAccount},
+    token_2022::{burn_checked, close_account, BurnChecked, CloseAccount},
     token_interface::{Mint, TokenAccount, TokenInterface},
 };
 
@@ -93,17 +93,18 @@ pub fn return_ticket_handler(
     require!(!ctx.accounts.ticket.used, EventError::TicketAlreadyUsed);
 
     // Burn the NFT
-    let cpi_accounts = Burn {
+    let cpi_accounts = BurnChecked {
         mint: ctx.accounts.ticket_mint.to_account_info(),
         from: ctx.accounts.signer_ticket_ata.to_account_info(),
         authority: ctx.accounts.signer.to_account_info(),
     };
-    burn(
+    burn_checked(
         CpiContext::new(ctx.accounts.token_program.to_account_info(), cpi_accounts),
         1,
+        0,
     )?;
 
-    // Close the buyer's token account ---
+    // Close the buyer's token account
     let cpi_accounts = CloseAccount {
         account: ctx.accounts.signer_ticket_ata.to_account_info(),
         destination: ctx.accounts.signer.to_account_info(),
@@ -114,7 +115,7 @@ pub fn return_ticket_handler(
         cpi_accounts,
     ))?;
 
-    // Update Event State ---
+    // Update Event State
     ctx.accounts.event.tickets_returned = ctx
         .accounts
         .event

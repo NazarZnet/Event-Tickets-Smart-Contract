@@ -47,6 +47,7 @@ pub struct CloseExpiredTicket<'info> {
     )]
     pub ticket_mint: InterfaceAccount<'info, Mint>,
 
+    /// Additional account from transfer hook to get the mint owner
     #[account(
         mut,
         seeds = [TICKET_OWNERSHIP_SEED, ticket_mint.key().as_ref()],
